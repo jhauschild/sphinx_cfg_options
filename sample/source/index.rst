@@ -7,6 +7,7 @@ Welcome to sphinxparameter's documentation!
 
    test
    test2
+   mylib
 
 Indices and tables
 ==================

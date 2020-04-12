@@ -1,9 +1,14 @@
 # -*- coding: utf-8 -*-
 extensions = ['sphinx.ext.coverage',
               'sphinx.ext.viewcode',
+              'sphinx.ext.autodoc',
+              'sphinx.ext.napoleon',
               'sphinxparameters']
 
 source_suffix = '.rst'
+
+
+needs_sphinx = '3.0'
 
 # The master toctree document.
 master_doc = 'index'
@@ -32,7 +37,7 @@ pygments_style = 'sphinx'
 
 html_theme = 'alabaster'
 
-html_static_path = ['_static']
+html_static_path = []
 
 # This is required for the alabaster theme
 # refs: http://alabaster.readthedocs.io/en/latest/installation.html#sidebars
