@@ -14,20 +14,64 @@ from sphinx import addnodes
 
 
 
-class PrmTypedField(PyTypedField):
+class TypedIndexedField(PyTypedField):
     def make_xref(self, rolename, domain, target,
                   innernode=addnodes.literal_emphasis,
                   contnode=None, env=None):
         if rolename == 'py-class':
             return super().make_xref("class", "py", target, innernode, contnode, env)
-        if rolename == 'entry-lookup':
+        if rolename == 'entry':
             pass # TODO need context to update target: include Parent class!
-
-        elif rolename == 'make-entry-target':
-            # TODO: instead of making a cross-ref to another entry, define a target node!
-            pass
-
         return Field.make_xref(self, rolename, domain, target, innernode, contnode, env)
+
+
+    def make_field(self, types, domain, items, env=None):
+        """Like TypedField.make_field(), but also call `self.add_entry_target_and_index`."""
+        assert env is not None   # don't expect this to happen
+
+        def handle_item(fieldarg, content):
+            par = nodes.paragraph()
+            par.extend(self.make_xrefs(self.rolename, domain, fieldarg,
+                                       addnodes.literal_strong, env=env))
+            if fieldarg in types:
+                par += nodes.Text(' (')
+                # NOTE: using .pop() here to prevent a single type node to be
+                # inserted twice into the doctree, which leads to
+                # inconsistencies later when references are resolved
+                fieldtype = types.pop(fieldarg)
+                if len(fieldtype) == 1 and isinstance(fieldtype[0], nodes.Text):
+                    typename = fieldtype[0].astext()
+                    par.extend(self.make_xrefs(self.typerolename, domain, typename,
+                                               addnodes.literal_emphasis, env=env))
+                else:
+                    par += fieldtype
+                par += nodes.Text(')')
+            par += nodes.Text(' -- ')
+            par += content
+            self.add_entry_target_and_index(fieldarg, par, env)  # <--- this is new!
+            return par
+
+        fieldname = nodes.field_name('', self.label)
+        if len(items) == 1 and self.can_collapse:
+            fieldarg, content = items[0]
+            bodynode = handle_item(fieldarg, content)  # type: nodes.Node
+        else:
+            bodynode = self.list_type()
+            for fieldarg, content in items:
+                bodynode += nodes.list_item('', handle_item(fieldarg, content))
+        fieldbody = nodes.field_body('', bodynode)
+        return nodes.field('', fieldname, fieldbody)
+
+
+    def add_entry_target_and_index(self, fieldname, content, env, noindex=False):
+        prefix = env.ref_context['prm:coll']
+        assert prefix is not None
+        id_name = "%s.%s" % (prefix, fieldname)
+        content['ids'].append(id_name)
+
+
+
+
 
 
 class PrmDefinition(ObjectDescription):
@@ -37,36 +81,38 @@ class PrmDefinition(ObjectDescription):
 
     option_spec = {
         'noindex': directives.flag,
-        'module': directives.unchanged,
+        'module': directives.unchanged,  # TODO: use those
         'class': directives.unchanged,
     }
 
     doc_field_types = [
-        PrmTypedField('definitions', label='Used here',
-                   names=('param', 'parameter', 'arg', 'argument', 'keyword', 'kwarg', 'kwparam'),
-                   rolename='entry',
-                   typerolename='py-class', typenames=('paramtype', 'type'),
-                   can_collapse=True),
+        TypedIndexedField('definition', label='Definitions',
+                      names=('param', 'param', 'parameter', 'arg', 'argument', 'keyword', 'kwarg', 'kwparam'),
+                      rolename='make-entry-target',  # HACK
+                      typerolename='py-class', typenames=('paramtype', 'type'),
+                      can_collapse=True),
     ]
 
 
+
     def handle_signature(self, sig, signode):
-        # TODO: use self.env.ref_context['py:class'] and self.env.ref_context['py:module']
-        # update `sig` for a full, unique name.
         signode += addnodes.desc_name(text=sig)
         signode += addnodes.desc_type(text='Parameters instance')
-        return sig  # TODO: returns `name_cls` used for `add_target_and_index`; Py uses fullname, name?
+        # TODO: use self.env.ref_context['py:class'] and self.env.ref_context['py:module']
+        # update `sig` for a full, unique name.
+        name = sig
+        return name  # TODO: returns `name_cls` used for `add_target_and_index`; Py uses fullname, name?
 
-    def add_target_and_index(self, name_cls, sig, signode):
+    def add_target_and_index(self, name, sig, signode):
         modname = self.options.get('module', self.env.ref_context.get('py:module'))
-        fullname = (modname + '.' if modname else '') + name_cls
+        fullname = (modname + '.' if modname else '') + name
         node_id = make_id(self.env, self.state.document, '', fullname)
 
-        signode['ids'].append(node_id)  # this is the index text!
+        signode['ids'].append(node_id)
         if 'noindex' not in self.options:
-            name = "{}".format('prm', type(self).__name__, sig)
+            name = "{}-{}-{}".format('prm', type(self).__name__, sig)
             # imap = self.env.domaindata['prm']['obj2entry']
-            # imap[name] = list(self.options.get('contains').split(' '))
+            # imap[name] = list(self.options.get('include').split(' '))
             objs = self.env.domaindata['prm']['objects']
             objs.append((name,
                          sig,
@@ -75,38 +121,49 @@ class PrmDefinition(ObjectDescription):
                          node_id,
                          0))
 
+    def before_content(self):
+        # save context for make_xref
+        if self.names:
+            name = self.names[-1]  # what was returned from `handle_sig
+            self.env.ref_context['prm:coll'] = name
 
-class PrmCollection(ObjectDescription):
+    def after_content(self):
+        if 'prm:coll' in self.env.ref_context:
+            del self.env.ref_context['prm:coll']
+
+
+class PrmCollection(PrmDefinition):
     """A custom node that describes a parameter."""
 
     required_arguments = 1
 
-    option_spec = {
-        'noindex': directives.flag,
-        'contains': directives.unchanged
-    }
+    option_spec = PrmDefinition.option_spec
+    option_spec.update({
+        'include': directives.unchanged,
+    })
+    # TODO : for each `include` entry, make a Node to be replaced afterwards.
 
 
-    def handle_signature(self, sig, signode):
-        # TODO: use self.env.ref_context['py:class'] and self.env.ref_context['py:module']
-        # update `sig` for a full, unique name.
-        signode += addnodes.desc_name(text=sig)
-        signode += addnodes.desc_type(text='Parameter collection')
-        return sig
+    # def handle_signature(self, sig, signode):
+    #     # TODO: use self.env.ref_context['py:class'] and self.env.ref_context['py:module']
+    #     # update `sig` for a full, unique name.
+    #     signode += addnodes.desc_name(text=sig)
+    #     signode += addnodes.desc_type(text='Parameter collection')
+    #     return sig
 
-    def add_target_and_index(self, name_cls, sig, signode):
-        signode['ids'].append('prm' + '-' + sig)
-        if 'noindex' not in self.options:
-            name = "{}.{}.{}".format('prm', type(self).__name__, sig)
-            imap = self.env.domaindata['prm']['obj2entry']
-            imap[name] = list(self.options.get('contains').split(' '))
-            objs = self.env.domaindata['prm']['objects']
-            objs.append((name,
-                         sig,
-                         'Parameter',
-                         self.env.docname,
-                         'prm' + '-' + sig,
-                         0))
+    # def add_target_and_index(self, name_cls, sig, signode):
+    #     signode['ids'].append('prm' + '-' + sig)
+    #     if 'noindex' not in self.options:
+    #         name = "{}.{}.{}".format('prm', type(self).__name__, sig)
+    #         imap = self.env.domaindata['prm']['obj2entry']
+    #         imap[name] = list(self.options.get('include').split(' '))
+    #         objs = self.env.domaindata['prm']['objects']
+    #         objs.append((name,
+    #                      sig,
+    #                      'Parameter',
+    #                      self.env.docname,
+    #                      'prm' + '-' + sig,
+    #                      0))
 
 
 
