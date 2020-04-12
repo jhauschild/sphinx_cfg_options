@@ -1,7 +1,9 @@
+from collections import namedtuple
+
 import docutils
 from docutils import nodes
 from docutils.parsers import rst
-from docutils.parsers.rst import directives
+from docutils.parsers.rst import directives, Directive
 import sphinx
 from sphinx.domains import Domain, Index, ObjType
 from sphinx.domains.python import PyTypedField
@@ -13,8 +15,13 @@ from sphinx.util.nodes import make_id, make_refnode
 from sphinx import addnodes
 
 
+ParamEntry = namedtuple('ParamEntry', "name, dispname, docname, anchor, contentnode")
+ObjectsEntry = namedtuple('ObjectsEntry', "name, dispname, typ, docname, anchor, prio")
+IndexEntry = namedtuple('IndexEntry', "name, subtype, docname, anchor, extra, qualifier, descr")
 
-class TypedIndexedField(PyTypedField):
+
+
+class IndexedTypedField(PyTypedField):
     def make_xref(self, rolename, domain, target,
                   innernode=addnodes.literal_emphasis,
                   contnode=None, env=None):
@@ -29,7 +36,9 @@ class TypedIndexedField(PyTypedField):
         """Like TypedField.make_field(), but also call `self.add_entry_target_and_index`."""
         assert env is not None   # don't expect this to happen
 
-        def handle_item(fieldarg, content):
+        entries = []
+
+        for fieldarg, content in items:
             par = nodes.paragraph()
             par.extend(self.make_xrefs(self.rolename, domain, fieldarg,
                                        addnodes.literal_strong, env=env))
@@ -49,29 +58,39 @@ class TypedIndexedField(PyTypedField):
             par += nodes.Text(' -- ')
             par += content
             self.add_entry_target_and_index(fieldarg, par, env)  # <--- this is new!
-            return par
+            entries.append(par)
 
         fieldname = nodes.field_name('', self.label)
         if len(items) == 1 and self.can_collapse:
-            fieldarg, content = items[0]
-            bodynode = handle_item(fieldarg, content)  # type: nodes.Node
+            bodynode = entries[0]
         else:
             bodynode = self.list_type()
-            for fieldarg, content in items:
-                bodynode += nodes.list_item('', handle_item(fieldarg, content))
+            for entry in entries:
+                bodynode += nodes.list_item('', entry)
         fieldbody = nodes.field_body('', bodynode)
         return nodes.field('', fieldname, fieldbody)
 
-
     def add_entry_target_and_index(self, fieldname, content, env, noindex=False):
-        prefix = env.ref_context['prm:coll']
-        assert prefix is not None
-        id_name = "%s.%s" % (prefix, fieldname)
-        content['ids'].append(id_name)
+        collection = env.ref_context['prm:def']
+        assert collection is not None
+        id_name = "%s.%s" % (collection, fieldname)
 
+        param_entry = ParamEntry(name=id_name,
+                                 dispname=fieldname,
+                                 docname=env.docname,
+                                 anchor=id_name,
+                                 contentnode=content.copy())
+        coll_entries = env.domaindata['prm']['coll2entries'].setdefault(collection, [])
+        coll_entries.append(param_entry)
+        obj_entry = ObjectsEntry(name=id_name,
+                                 dispname=fieldname,
+                                 typ="entry",
+                                 docname=env.docname,
+                                 anchor=id_name,
+                                 prio=0)
+        env.domaindata['prm']['objects'].append(obj_entry)
 
-
-
+        content['ids'].append(id_name)  # after copying the content!
 
 
 class PrmDefinition(ObjectDescription):
@@ -86,7 +105,7 @@ class PrmDefinition(ObjectDescription):
     }
 
     doc_field_types = [
-        TypedIndexedField('definition', label='Definitions',
+        IndexedTypedField('definition', label='Definitions',
                       names=('param', 'param', 'parameter', 'arg', 'argument', 'keyword', 'kwarg', 'kwparam'),
                       rolename='make-entry-target',  # HACK
                       typerolename='py-class', typenames=('paramtype', 'type'),
@@ -97,7 +116,7 @@ class PrmDefinition(ObjectDescription):
 
     def handle_signature(self, sig, signode):
         signode += addnodes.desc_name(text=sig)
-        signode += addnodes.desc_type(text='Parameters instance')
+        signode += addnodes.desc_type(text='Parameters definition')
         # TODO: use self.env.ref_context['py:class'] and self.env.ref_context['py:module']
         # update `sig` for a full, unique name.
         name = sig
@@ -110,31 +129,25 @@ class PrmDefinition(ObjectDescription):
 
         signode['ids'].append(node_id)
         if 'noindex' not in self.options:
-            name = "{}-{}-{}".format('prm', type(self).__name__, sig)
-            # imap = self.env.domaindata['prm']['obj2entry']
-            # imap[name] = list(self.options.get('include').split(' '))
-            objs = self.env.domaindata['prm']['objects']
-            objs.append((name,
-                         sig,
-                         'definition',
-                         self.env.docname,
-                         node_id,
-                         0))
+            obj_entry = ObjectsEntry(fullname, sig, 'def', self.env.docname, node_id, 0)
+            self.env.domaindata['prm']['objects'].append(obj_entry)
 
     def before_content(self):
         # save context for make_xref
         if self.names:
             name = self.names[-1]  # what was returned from `handle_sig
-            self.env.ref_context['prm:coll'] = name
+            self.env.ref_context['prm:def'] = name
 
     def after_content(self):
-        if 'prm:coll' in self.env.ref_context:
-            del self.env.ref_context['prm:coll']
+        if 'prm:def' in self.env.ref_context:
+            del self.env.ref_context['prm:def']
 
 
-class PrmCollection(PrmDefinition):
+
+class PrmCollection(Directive):
     """A custom node that describes a parameter."""
 
+    has_content = 1
     required_arguments = 1
 
     option_spec = PrmDefinition.option_spec
@@ -165,56 +178,43 @@ class PrmCollection(PrmDefinition):
     #                      'prm' + '-' + sig,
     #                      0))
 
+    def run(self):
+        return []
 
 
 class PrmEntryIndex(Index):
-    """A custom directive that creates an entry matrix."""
-
-    name = 'entr'
+    name = 'entry'
     localname = 'Parameters Index'
     shortname = 'Parameters'
 
     def generate(self, docnames=None):
         content = {}
-
-        objs = {name: (dispname, typ, docname, anchor)
-                for name, dispname, typ, docname, anchor, prio
-                in self.domain.get_objects()}
-
-        imap = {}
-        ingr = self.domain.data['obj2entry']
-        for name, ingr in ingr.items():
-            for ig in ingr:
-                imap.setdefault(ig,[])
-                imap[ig].append(name)
-
-        for ingredient in imap.keys():
-            lis = content.setdefault(ingredient, [])
-            objlis = imap[ingredient]
-            for objname in objlis:
-                dispname, typ, docname, anchor = objs[objname]
-                lis.append((
-                    dispname, 0, docname,
-                    anchor,
-                    docname, '', typ
-                ))
-        re = [(k, v) for k, v in sorted(content.items())]
-
-        return (re, True)
+        for obj in self.domain.get_objects():
+            if obj.typ != "entry":
+                continue
+            collection = obj.name.rsplit('.', 1)[0]
+            ind_entry = IndexEntry(name=obj.dispname,
+                                   subtype=0,
+                                   docname=obj.docname,
+                                   anchor=obj.anchor,
+                                   extra=collection,
+                                   qualifier='',
+                                   descr='')
+            content.setdefault(collection, []).append(ind_entry)
+        content = [(k, content[k]) for k in sorted(content.keys())]
+        return (content, True)
 
 
 class PrmCollectionIndex(Index):
     name = 'coll'
-    localname = 'Parameter Collection Index'
-    shortname = 'Parameter Collections'
+    localname = 'Parameter Collections Index'
+    shortname = 'Parameter Index'
 
     def generate(self, docnames=None):
         content = {}
-        items = ((name, dispname, typ, docname, anchor)
-                 for name, dispname, typ, docname, anchor, prio
-                 in self.domain.get_objects())
-        items = sorted(items, key=lambda item: item[0])
-        for name, dispname, typ, docname, anchor in items:
+        items = self.domain.get_objects()
+        items = sorted(items, key=lambda item: item[1])
+        for name, dispname, typ, docname, anchor, prio in items:
             lis = content.setdefault(dispname[0].upper(), [])
             lis.append((
                 dispname, 0, docname,
@@ -231,7 +231,7 @@ class PrmDomain(Domain):
 
     roles = {
         'coll': XRefRole(),
-        'param': XRefRole(),
+        'entry': XRefRole(),
         'def': XRefRole(),
     }
 
@@ -246,14 +246,14 @@ class PrmDomain(Domain):
     }
 
     initial_data = {
-        'objects': [],  # object list
-        'obj2entry': {},  # name -> object
+        'objects': [],  # list of ObjectsEntry tuples
+        'coll2entries': {},  # collectionname -> ParamEntry tuples
     }
 
     obj_types = {
         'collection':  ObjType('collection', 'coll'),
-        'entry':  ObjType('parameter', 'param'),
-        'definition':  ObjType('definiton'),
+        'entry':  ObjType('entry', 'entry'),
+        'definition':  ObjType('definiton', 'def'),
     }
 
 
@@ -271,8 +271,8 @@ class PrmDomain(Domain):
                      target, node, contnode):
 
         match = [(docname, anchor)
-                 for name, sig, typ_, docname, anchor, prio
-                 in self.get_objects() if sig == target]
+                 for name, dispname, typ_, docname, anchor, prio
+                 in self.get_objects() if dispname == target]
 
         if len(match) > 0:
             todocname = match[0][0]
@@ -289,7 +289,7 @@ def setup(app):
 
     StandardDomain.initial_data['labels']['prm-coll-index'] =\
         ('prm-coll', '', 'Parameter Collection Index')
-    StandardDomain.initial_data['labels']['prm-entr-index'] =\
-        ('prm-entr', '', 'Parameters Index')
+    StandardDomain.initial_data['labels']['prm-entry-index'] =\
+        ('prm-entry', '', 'Parameters Index')
 
     return {'version': '0.1'}

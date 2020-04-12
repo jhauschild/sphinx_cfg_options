@@ -13,5 +13,5 @@ Indices and tables
 ==================
 
 * :ref:`prm-coll-index`
-* :ref:`prm-entr-index`
+* :ref:`prm-entry-index`
 * :ref:`search`

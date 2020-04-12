@@ -17,8 +17,7 @@ The recipe contains `tomato` and `cilantro`.
 
    :param a: Describe parameter `a` with text.
    :type a: None
-   :param b: Descripbe parameter `b` with text.
-   :type b: mylib.B
+   :param mylib.B b: Describe parameter `b` with text.
 
 
 And here's another test.
@@ -28,5 +27,5 @@ And here's another test.
   Some description.
 
 
-
-See, there you go. You can also link to :prm:coll:`DMRG`
+See, there you go. You can also link to the collection :prm:coll:`DMRG`, 
+and individual parameters like :prm:entry:`DMRG.a` or :prm:entry:`DMRG.b`
