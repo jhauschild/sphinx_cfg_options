@@ -9,10 +9,12 @@ extensions = ['sphinx.ext.coverage',
               'sphinx.ext.viewcode',
               'sphinx.ext.autodoc',
               'sphinx.ext.napoleon',
+              'sphinx.ext.todo',
               'sphinxparameters']
 
 source_suffix = '.rst'
 
+todo_include_todos = True
 
 needs_sphinx = '3.0'
 
@@ -42,8 +44,9 @@ pygments_style = 'sphinx'
 
 
 html_theme = 'alabaster'
+# html_theme = 'sphinx_rtd_theme'
 
-html_static_path = []
+html_static_path = ['_static']
 
 # This is required for the alabaster theme
 # refs: http://alabaster.readthedocs.io/en/latest/installation.html#sidebars
