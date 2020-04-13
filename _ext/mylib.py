@@ -14,11 +14,11 @@ class B:
 class A:
     """My A class.
 
-    .. prm:definition :: params
+    .. prm:definition :: DMRG
 
         :param first: Describe the `first` parameter, context ``alowed``.
         :type first: int
-        :param second: Describe the `second` parameter, c.f. :class:`mylib.B`.
+        :param second: Describe the `second` parameter, c.f. :py:class:`mylib.B`.
         :type second: float
 
 
@@ -39,7 +39,13 @@ class A:
         self.x = 2
 
     def show_params(self):
-        """Print keys of :attr:`params`."""
+        """Print keys of :attr:`params`.
+
+        .. prm:definition :: DMRG
+
+            :param first: Describe the `first` parameter, context ``alowed``.
+            :type first: int
+        """
         print(self.params.keys())
 
 
@@ -51,6 +57,9 @@ class Asub(A):
 def complicated_function(a, b, c, params):
     """A complicated function.
 
+    .. prm:definition :: DMRG
+
+        :param int Na: Number of repetitions for `a`.
 
     Parameters
     ----------
@@ -58,11 +67,13 @@ def complicated_function(a, b, c, params):
         Parameter `a` description.
     b : :class:`mylib.B`
         Parameter `b` description.
-    params : dict
+    complicated_params : dict
         Parameters.
+
 
     Returns
     -------
     x : int
         The sum of `a` and `b`
     """
+    pass

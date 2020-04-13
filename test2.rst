@@ -17,3 +17,7 @@ Link to nonexistent :prm:coll:`ABCD`.
     :type y: int
 
 
+
+.. todo ::
+    check wether todolists works with references like :class:`mylib.B`
+

@@ -3,22 +3,33 @@ from collections import namedtuple
 import docutils
 from docutils import nodes
 from docutils.parsers import rst
-from docutils.parsers.rst import directives, Directive
+from docutils.parsers.rst import directives
 import sphinx
 from sphinx.domains import Domain, Index, ObjType
 from sphinx.domains.python import PyTypedField
 from sphinx.domains.std import StandardDomain
-from sphinx.util.docfields import Field, TypedField
+from sphinx.errors import NoUri
+from sphinx.util.docfields import Field, TypedField, GroupedField
 from sphinx.roles import XRefRole
 from sphinx.directives import ObjectDescription
 from sphinx.util.nodes import make_id, make_refnode
+from sphinx.util.docutils import new_document
 from sphinx import addnodes
 
 
-ParamEntry = namedtuple('ParamEntry', "name, dispname, docname, anchor, contentnode")
+ParamEntry = namedtuple('ParamEntry', "name, dispname, collection, docname, anchor, parent")
 ObjectsEntry = namedtuple('ObjectsEntry', "name, dispname, typ, docname, anchor, prio")
 IndexEntry = namedtuple('IndexEntry', "name, subtype, docname, anchor, extra, qualifier, descr")
 
+
+class prmcollection(nodes.General, nodes.Element):
+    """A node to be replaced by a list of entries for a given `collection`.
+
+    The replacement happens in :meth:`CollectionNodeProcessor.process`."""
+    def __init__(self, collections, can_collapse=True):
+        super().__init__('')
+        self.collections = collections
+        self.can_collapse = can_collapse
 
 
 class IndexedTypedField(PyTypedField):
@@ -27,10 +38,7 @@ class IndexedTypedField(PyTypedField):
                   contnode=None, env=None):
         if rolename == 'py-class':
             return super().make_xref("class", "py", target, innernode, contnode, env)
-        if rolename == 'entry':
-            pass # TODO need context to update target: include Parent class!
         return Field.make_xref(self, rolename, domain, target, innernode, contnode, env)
-
 
     def make_field(self, types, domain, items, env=None):
         """Like TypedField.make_field(), but also call `self.add_entry_target_and_index`."""
@@ -72,25 +80,44 @@ class IndexedTypedField(PyTypedField):
 
     def add_entry_target_and_index(self, fieldname, content, env, noindex=False):
         collection = env.ref_context['prm:def']
+        parent = env.ref_context.get('prm:def-parent', None)
         assert collection is not None
-        id_name = "%s.%s" % (collection, fieldname)
+        name = "%s.%s" % (collection, fieldname)
+        anchor = "prm-entry-%d" % env.new_serialno('prm-entry')
+        content['ids'].append(anchor)
+        content['ids'].append("prm-%s" % name)
 
-        param_entry = ParamEntry(name=id_name,
+        param_entry = ParamEntry(name=name,
                                  dispname=fieldname,
+                                 collection=collection,
                                  docname=env.docname,
-                                 anchor=id_name,
-                                 contentnode=content.copy())
+                                 anchor=anchor,
+                                 parent=parent,
+                                 )
         coll_entries = env.domaindata['prm']['coll2entries'].setdefault(collection, [])
         coll_entries.append(param_entry)
-        obj_entry = ObjectsEntry(name=id_name,
+        obj_entry = ObjectsEntry(name=name,
                                  dispname=fieldname,
                                  typ="entry",
                                  docname=env.docname,
-                                 anchor=id_name,
+                                 anchor=anchor,
                                  prio=0)
         env.domaindata['prm']['objects'].append(obj_entry)
 
-        content['ids'].append(id_name)  # after copying the content!
+
+
+class CollectionField(GroupedField):
+    def make_field(self, types, domain, items, env=None):
+        """Like TypedField.make_field(), but also call `self.add_entry_target_and_index`."""
+        assert env is not None   # don't expect this to happen
+
+        fieldname = nodes.field_name('', self.label)
+        entries = []
+        for fieldarg, content in items:
+            entries.append(fieldarg)
+        bodynode = prmcollection(entries, self.can_collapse)
+        fieldbody = nodes.field_body('', bodynode)
+        return nodes.field('', fieldname, fieldbody)
 
 
 class PrmDefinition(ObjectDescription):
@@ -100,7 +127,8 @@ class PrmDefinition(ObjectDescription):
 
     option_spec = {
         'noindex': directives.flag,
-        'module': directives.unchanged,  # TODO: use those
+        'parent': directives.unchanged,
+        'module': directives.unchanged,  # TODO: use those in handle_signature
         'class': directives.unchanged,
     }
 
@@ -113,73 +141,146 @@ class PrmDefinition(ObjectDescription):
     ]
 
 
-
     def handle_signature(self, sig, signode):
-        signode += addnodes.desc_name(text=sig)
-        signode += addnodes.desc_type(text='Parameters definition')
-        # TODO: use self.env.ref_context['py:class'] and self.env.ref_context['py:module']
-        # update `sig` for a full, unique name.
-        name = sig
-        return name  # TODO: returns `name_cls` used for `add_target_and_index`; Py uses fullname, name?
+        # TODO: use below; might want to use PyXRefMixin for that?
+        # modname = self.options.get('module', self.env.ref_context.get('py:module'))
+        # clsname = self.options.get('cls', self.env.ref_context.get('py:class'))
+        # fullname = (modname + '.' if modname else '') + sig
+        signode += addnodes.desc_annotation('Parameters ', 'Parameters ')
+        signame = addnodes.pending_xref(sig, nodes.Text(sig),
+                                        refdomain='prm', reftype='coll', reftarget=sig)
+        anchor = "prm-entry-%d" % self.env.new_serialno('entry')
+        signode += addnodes.desc_name(sig, '', signame)
+
+        name = sig  # TODO make name a tuple `(fullname, dispname)` as for PyObject?
+        return name
 
     def add_target_and_index(self, name, sig, signode):
-        modname = self.options.get('module', self.env.ref_context.get('py:module'))
-        fullname = (modname + '.' if modname else '') + name
-        node_id = make_id(self.env, self.state.document, '', fullname)
 
-        signode['ids'].append(node_id)
+        anchor = "prm-def-%d" % self.env.new_serialno('prm-def')
+        signode['ids'].append(anchor)
+        self.state.document.note_explicit_target(signode)
         if 'noindex' not in self.options:
-            obj_entry = ObjectsEntry(fullname, sig, 'def', self.env.docname, node_id, 0)
+            obj_entry = ObjectsEntry(name, sig, 'def', self.env.docname, anchor, 0)
             self.env.domaindata['prm']['objects'].append(obj_entry)
 
     def before_content(self):
-        # save context for make_xref
+        # save context
         if self.names:
             name = self.names[-1]  # what was returned from `handle_sig
             self.env.ref_context['prm:def'] = name
+        if 'parent' in self.options:
+            self.env.ref_context['prm:def-parent'] =  parent = self.options['parent']
+        super().before_content()
 
     def after_content(self):
         if 'prm:def' in self.env.ref_context:
             del self.env.ref_context['prm:def']
+        super().after_content()
+
+    def run(self):
+        parent_name = self.env.temp_data.get('object', None)
+        if isinstance(parent_name, tuple):
+            parent_name = parent_name[0]
+        self.env.ref_context['prm:def-parent'] = parent_name
+        res = super().run()
+        return res
 
 
-
-class PrmCollection(Directive):
-    """A custom node that describes a parameter."""
+class PrmCollection(PrmDefinition):
 
     has_content = 1
     required_arguments = 1
 
-    option_spec = PrmDefinition.option_spec
-    option_spec.update({
-        'include': directives.unchanged,
-    })
-    # TODO : for each `include` entry, make a Node to be replaced afterwards.
+    # option_spec = PrmDefinition.option_spec
+    # option_spec.update({
+    #     'include': directives.unchanged,
+    # })
+    doc_field_types = PrmDefinition.doc_field_types[:]
+    doc_field_types.append(
+        CollectionField('collection', label='Collection',
+                      names=('collect', 'coll'),
+                      can_collapse=True)
+    )
+
+    def handle_signature(self, sig, signode):
+        # TODO: use below; might want to use PyXRefMixin for that?
+        # modname = self.options.get('module', self.env.ref_context.get('py:module'))
+        # clsname = self.options.get('cls', self.env.ref_context.get('py:class'))
+        # fullname = (modname + '.' if modname else '') + sig
+        signode += addnodes.desc_annotation('Parameters ', 'Parameters ')
+        signode += addnodes.desc_name(sig, sig)
+
+        name = sig  # TODO make name a tuple `(fullname, dispname)` as for PyObject?
+        return name
+    def before_content(self):
+        name = self.names[0]
+        # HACK: insert `:collect <name>:` line before content
+        self.content.insert(0, ":collect " + name + ":", (self.state.document, ), offset=0)
+        super().before_content()
+
+    def add_target_and_index(self, name, sig, signode):
+        node_id = make_id(self.env, self.state.document, 'prm-coll', name)
+        signode['ids'].append(node_id)
+        self.state.document.note_explicit_target(signode)
+        if 'noindex' not in self.options:
+            obj_entry = ObjectsEntry(name, sig, 'coll', self.env.docname, node_id, 0)
+            self.env.domaindata['prm']['objects'].append(obj_entry)
 
 
-    # def handle_signature(self, sig, signode):
-    #     # TODO: use self.env.ref_context['py:class'] and self.env.ref_context['py:module']
-    #     # update `sig` for a full, unique name.
-    #     signode += addnodes.desc_name(text=sig)
-    #     signode += addnodes.desc_type(text='Parameter collection')
-    #     return sig
+class CollectionNodeProcessor:
+    def __init__(self, app, doctree, docname):
+        self.env = app.builder.env
+        self.builder = app.builder
+        self.domain = app.env.get_domain('prm')
+        self.docname = docname
 
-    # def add_target_and_index(self, name_cls, sig, signode):
-    #     signode['ids'].append('prm' + '-' + sig)
-    #     if 'noindex' not in self.options:
-    #         name = "{}.{}.{}".format('prm', type(self).__name__, sig)
-    #         imap = self.env.domaindata['prm']['obj2entry']
-    #         imap[name] = list(self.options.get('include').split(' '))
-    #         objs = self.env.domaindata['prm']['objects']
-    #         objs.append((name,
-    #                      sig,
-    #                      'Parameter',
-    #                      self.env.docname,
-    #                      'prm' + '-' + sig,
-    #                      0))
+        self.process(doctree)
 
-    def run(self):
-        return []
+    def process(self, doctree):
+        coll2entries = self.env.domaindata['prm']['coll2entries']
+
+        for node in doctree.traverse(prmcollection):
+            collections = node.collections # TODO: include more collections
+            collection = collections[0]
+            prio = dict((coll, i) for i, coll in enumerate(collections))
+            entries = []
+            for include in collections:
+                for entry in coll2entries.get(include, []):
+                    entries.append(entry)
+            entries = sorted(entries, key=lambda e: (e.dispname.lower(), prio[entry.collection]))
+
+            new_content = [self.create_entry_reference(entry, collection) for entry in entries]
+            if len(new_content) > 1 or not node.can_collapse:
+                listnode = nodes.bullet_list()
+                for entry in new_content:
+                    listnode += nodes.list_item('', entry)
+                new_content = listnode
+            node.replace_self(new_content)
+
+
+    def create_entry_reference(self, entry, collection):
+
+        # TODO: include link to definition and name category if different
+
+        par = nodes.paragraph()
+        # ParamEntry = namedtuple('ParamEntry', "name, dispname, collection, docname, anchor, parent")
+        innernode = addnodes.literal_strong(entry.dispname, entry.dispname)
+        try:
+            refnode = make_refnode(self.builder, self.docname, entry.docname, entry.anchor, innernode)
+        except NoUri:
+            # ignore if no URI can be determined, e.g. for LaTeX output
+            refnode = innernode
+        par += refnode
+        if entry.parent is not None:
+            par += nodes.Text(" in ")
+            par += addnodes.literal_emphasis(entry.parent, entry.parent)  # TODO: crossref
+        if entry.collection != collection:
+            par += nodes.Text(' (from ')
+            par += nodes.Text(entry.collection)  # TODO crossref!
+            par += nodes.Text(')')
+        return par
+
 
 
 class PrmEntryIndex(Index):
@@ -272,7 +373,7 @@ class PrmDomain(Domain):
 
         match = [(docname, anchor)
                  for name, dispname, typ_, docname, anchor, prio
-                 in self.get_objects() if dispname == target]
+                 in self.get_objects() if name == target and typ_ == typ]
 
         if len(match) > 0:
             todocname = match[0][0]
@@ -286,6 +387,9 @@ class PrmDomain(Domain):
 
 def setup(app):
     app.add_domain(PrmDomain)
+
+    app.add_node(prmcollection)
+    app.connect('doctree-resolved', CollectionNodeProcessor)
 
     StandardDomain.initial_data['labels']['prm-coll-index'] =\
         ('prm-coll', '', 'Parameter Collection Index')
