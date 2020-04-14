@@ -1,3 +1,8 @@
+# TODO: config values, e.g. 'recursive'?
+# TODO: use python domain?
+# TODO: allow/use recursive includes
+# TODO: allow/use reference for includes
+
 from collections import namedtuple
 
 import docutils
@@ -17,19 +22,37 @@ from sphinx.util.docutils import new_document
 from sphinx import addnodes
 
 
-ParamEntry = namedtuple('ParamEntry', "name, dispname, collection, docname, anchor, parent")
+ParamEntry = namedtuple('ParamEntry', "name, dispname, collection, docname, anchor, context")
 ObjectsEntry = namedtuple('ObjectsEntry', "name, dispname, typ, docname, anchor, prio")
 IndexEntry = namedtuple('IndexEntry', "name, subtype, docname, anchor, extra, qualifier, descr")
 
 
-class prmcollection(nodes.General, nodes.Element):
+class cfgcollection(nodes.General, nodes.Element):
     """A node to be replaced by a list of entries for a given `collection`.
 
     The replacement happens in :meth:`CollectionNodeProcessor.process`."""
-    def __init__(self, collections, can_collapse=True):
+    def __init__(self, collection, can_collapse=True):
         super().__init__('')
-        self.collections = collections
+        self.collection = collection
         self.can_collapse = can_collapse
+
+
+class CollectionField(GroupedField):
+    """Field collecting all the `fieldarg` given in a `cfgcollection` node."""
+    def make_field(self, types, domain, items, env=None):
+        """Like TypedField.make_field(), but also call `self.add_entry_target_and_index`."""
+        assert env is not None   # don't expect this to happen
+
+        fieldname = nodes.field_name('', self.label)
+        entries = [fieldarg for (fieldarg, content) in items]
+        collection = entries[0]  # ensured by adding CfgCollection.before_content().
+        coll_includes = env.domaindata['cfg']['coll2includes'].setdefault(collection, [])
+        for incl in entries:
+            if incl not in coll_includes:
+                coll_includes.append(incl)
+        bodynode = cfgcollection(collection, self.can_collapse)
+        fieldbody = nodes.field_body('', bodynode)
+        return nodes.field('', fieldname, fieldbody)
 
 
 class IndexedTypedField(PyTypedField):
@@ -79,22 +102,22 @@ class IndexedTypedField(PyTypedField):
         return nodes.field('', fieldname, fieldbody)
 
     def add_entry_target_and_index(self, fieldname, content, env, noindex=False):
-        collection = env.ref_context['prm:def']
-        parent = env.ref_context.get('prm:def-parent', None)
+        collection = env.ref_context['cfg:def']
+        context = env.ref_context.get('cfg:def-context', None)
         assert collection is not None
         name = "%s.%s" % (collection, fieldname)
-        anchor = "prm-entry-%d" % env.new_serialno('prm-entry')
+        anchor = "cfg-entry-%d" % env.new_serialno('cfg-entry')
         content['ids'].append(anchor)
-        content['ids'].append("prm-%s" % name)
+        content['ids'].append("cfg-%s" % name)
 
         param_entry = ParamEntry(name=name,
                                  dispname=fieldname,
                                  collection=collection,
                                  docname=env.docname,
                                  anchor=anchor,
-                                 parent=parent,
+                                 context=context,
                                  )
-        coll_entries = env.domaindata['prm']['coll2entries'].setdefault(collection, [])
+        coll_entries = env.domaindata['cfg']['coll2entries'].setdefault(collection, [])
         coll_entries.append(param_entry)
         obj_entry = ObjectsEntry(name=name,
                                  dispname=fieldname,
@@ -102,34 +125,17 @@ class IndexedTypedField(PyTypedField):
                                  docname=env.docname,
                                  anchor=anchor,
                                  prio=0)
-        env.domaindata['prm']['objects'].append(obj_entry)
+        env.domaindata['cfg']['objects']['entry'].append(obj_entry)
 
 
-
-class CollectionField(GroupedField):
-    def make_field(self, types, domain, items, env=None):
-        """Like TypedField.make_field(), but also call `self.add_entry_target_and_index`."""
-        assert env is not None   # don't expect this to happen
-
-        fieldname = nodes.field_name('', self.label)
-        entries = []
-        for fieldarg, content in items:
-            entries.append(fieldarg)
-        bodynode = prmcollection(entries, self.can_collapse)
-        fieldbody = nodes.field_body('', bodynode)
-        return nodes.field('', fieldname, fieldbody)
-
-
-class PrmDefinition(ObjectDescription):
+class CfgDefinition(ObjectDescription):
     """A custom node that describes a parameter."""
 
     required_arguments = 1
 
     option_spec = {
         'noindex': directives.flag,
-        'parent': directives.unchanged,
-        'module': directives.unchanged,  # TODO: use those in handle_signature
-        'class': directives.unchanged,
+        'context': directives.unchanged,
     }
 
     doc_field_types = [
@@ -146,10 +152,10 @@ class PrmDefinition(ObjectDescription):
         # modname = self.options.get('module', self.env.ref_context.get('py:module'))
         # clsname = self.options.get('cls', self.env.ref_context.get('py:class'))
         # fullname = (modname + '.' if modname else '') + sig
-        signode += addnodes.desc_annotation('Parameters ', 'Parameters ')
+        signode += addnodes.desc_annotation('Config ', 'Config ')
         signame = addnodes.pending_xref(sig, nodes.Text(sig),
-                                        refdomain='prm', reftype='coll', reftarget=sig)
-        anchor = "prm-entry-%d" % self.env.new_serialno('entry')
+                                        refdomain='cfg', reftype='coll', reftarget=sig)
+        anchor = "cfg-entry-%d" % self.env.new_serialno('entry')
         signode += addnodes.desc_name(sig, '', signame)
 
         name = sig  # TODO make name a tuple `(fullname, dispname)` as for PyObject?
@@ -157,49 +163,49 @@ class PrmDefinition(ObjectDescription):
 
     def add_target_and_index(self, name, sig, signode):
 
-        anchor = "prm-def-%d" % self.env.new_serialno('prm-def')
+        anchor = "cfg-def-%d" % self.env.new_serialno('cfg-def')
         signode['ids'].append(anchor)
         self.state.document.note_explicit_target(signode)
         if 'noindex' not in self.options:
             obj_entry = ObjectsEntry(name, sig, 'def', self.env.docname, anchor, 0)
-            self.env.domaindata['prm']['objects'].append(obj_entry)
+            self.env.domaindata['cfg']['objects']['def'].append(obj_entry)
 
     def before_content(self):
         # save context
         if self.names:
             name = self.names[-1]  # what was returned from `handle_sig
-            self.env.ref_context['prm:def'] = name
-        if 'parent' in self.options:
-            self.env.ref_context['prm:def-parent'] =  parent = self.options['parent']
+            self.env.ref_context['cfg:def'] = name
+        if 'context' in self.options:
+            self.env.ref_context['cfg:def-context'] = context = self.options['context']
         super().before_content()
 
     def after_content(self):
-        if 'prm:def' in self.env.ref_context:
-            del self.env.ref_context['prm:def']
+        if 'cfg:def' in self.env.ref_context:
+            del self.env.ref_context['cfg:def']
         super().after_content()
 
     def run(self):
-        parent_name = self.env.temp_data.get('object', None)
-        if isinstance(parent_name, tuple):
-            parent_name = parent_name[0]
-        self.env.ref_context['prm:def-parent'] = parent_name
+        context_name = self.env.temp_data.get('object', None)
+        if isinstance(context_name, tuple):
+            context_name = context_name[0]
+        self.env.ref_context['cfg:def-context'] = context_name
         res = super().run()
         return res
 
 
-class PrmCollection(PrmDefinition):
+class CfgCollection(CfgDefinition):
 
     has_content = 1
     required_arguments = 1
 
-    # option_spec = PrmDefinition.option_spec
+    # option_spec = CfgDefinition.option_spec
     # option_spec.update({
     #     'include': directives.unchanged,
     # })
-    doc_field_types = PrmDefinition.doc_field_types[:]
+    doc_field_types = CfgDefinition.doc_field_types[:]
     doc_field_types.append(
-        CollectionField('collection', label='Collection',
-                      names=('collect', 'coll'),
+        CollectionField('collection', label='Options',
+                      names=('incl', 'include'),
                       can_collapse=True)
     )
 
@@ -208,44 +214,46 @@ class PrmCollection(PrmDefinition):
         # modname = self.options.get('module', self.env.ref_context.get('py:module'))
         # clsname = self.options.get('cls', self.env.ref_context.get('py:class'))
         # fullname = (modname + '.' if modname else '') + sig
-        signode += addnodes.desc_annotation('Parameters ', 'Parameters ')
+        signode += addnodes.desc_annotation('Config ', 'Config ')
         signode += addnodes.desc_name(sig, sig)
 
         name = sig  # TODO make name a tuple `(fullname, dispname)` as for PyObject?
         return name
+
     def before_content(self):
         name = self.names[0]
-        # HACK: insert `:collect <name>:` line before content
-        self.content.insert(0, ":collect " + name + ":", (self.state.document, ), offset=0)
+        # HACK: insert `:include <name>:` line before content
+        self.content.insert(0, ":include " + name + ":", (self.state.document, ), offset=0)
         super().before_content()
 
     def add_target_and_index(self, name, sig, signode):
-        node_id = make_id(self.env, self.state.document, 'prm-coll', name)
+        node_id = make_id(self.env, self.state.document, 'cfg-coll', name)
         signode['ids'].append(node_id)
         self.state.document.note_explicit_target(signode)
         if 'noindex' not in self.options:
             obj_entry = ObjectsEntry(name, sig, 'coll', self.env.docname, node_id, 0)
-            self.env.domaindata['prm']['objects'].append(obj_entry)
+            self.env.domaindata['cfg']['objects']['coll'].append(obj_entry)
 
 
 class CollectionNodeProcessor:
     def __init__(self, app, doctree, docname):
         self.env = app.builder.env
         self.builder = app.builder
-        self.domain = app.env.get_domain('prm')
+        self.domain = app.env.get_domain('cfg')
         self.docname = docname
 
         self.process(doctree)
 
     def process(self, doctree):
-        coll2entries = self.env.domaindata['prm']['coll2entries']
+        coll2entries = self.env.domaindata['cfg']['coll2entries']
+        coll2includes = self.env.domaindata['cfg']['coll2includes']
 
-        for node in doctree.traverse(prmcollection):
-            collections = node.collections # TODO: include more collections
-            collection = collections[0]
-            prio = dict((coll, i) for i, coll in enumerate(collections))
+        for node in doctree.traverse(cfgcollection):
+            collection = node.collection # TODO: include more collections
+            includes = coll2includes[collection]
+            prio = dict((coll, i) for i, coll in enumerate(includes))
             entries = []
-            for include in collections:
+            for include in includes:
                 for entry in coll2entries.get(include, []):
                     entries.append(entry)
             entries = sorted(entries, key=lambda e: (e.dispname.lower(), prio[entry.collection]))
@@ -264,26 +272,39 @@ class CollectionNodeProcessor:
         # TODO: include link to definition and name category if different
 
         par = nodes.paragraph()
-        # ParamEntry = namedtuple('ParamEntry', "name, dispname, collection, docname, anchor, parent")
+        # ParamEntry = namedtuple('ParamEntry', "name, dispname, collection, docname, anchor, context")
         innernode = addnodes.literal_strong(entry.dispname, entry.dispname)
-        try:
-            refnode = make_refnode(self.builder, self.docname, entry.docname, entry.anchor, innernode)
-        except NoUri:
-            # ignore if no URI can be determined, e.g. for LaTeX output
-            refnode = innernode
-        par += refnode
-        if entry.parent is not None:
-            par += nodes.Text(" in ")
-            par += addnodes.literal_emphasis(entry.parent, entry.parent)  # TODO: crossref
+        par += self.make_refnode(entry.docname, entry.anchor, innernode)
         if entry.collection != collection:
             par += nodes.Text(' (from ')
-            par += nodes.Text(entry.collection)  # TODO crossref!
+            par += self._make_collection_xref(entry.collection)  # TODO crossref!
             par += nodes.Text(')')
+        if entry.context is not None:
+            par += nodes.Text(" in ")
+            par += addnodes.literal_emphasis(entry.context, entry.context)  # TODO: crossref
         return par
 
+    def make_refnode(self, docname, anchor, innernode):
+        try:
+            refnode = make_refnode(self.builder, self.docname, docname, anchor, innernode)
+        except NoUri:  # ignore if no URI can be determined, e.g. for LaTeX output
+            refnode = innernode
+        return refnode
+
+    def _make_collection_xref(self, collection):
+        node = nodes.Text(collection, collection)
+        match = [(obj_entry.docname, obj_entry.anchor)
+                 for obj_entry in self.domain.get_objects()
+                 if obj_entry.name == collection and obj_entry.typ == 'coll']
+        if len(match) > 0:
+            docname, anchor = match[0]
+            node = self.make_refnode(docname, anchor, node)
+        return node
 
 
-class PrmEntryIndex(Index):
+
+# TODO: which indices do we need?
+class CfgEntryIndex(Index):
     name = 'entry'
     localname = 'Parameters Index'
     shortname = 'Parameters'
@@ -306,7 +327,7 @@ class PrmEntryIndex(Index):
         return (content, True)
 
 
-class PrmCollectionIndex(Index):
+class CfgCollectionIndex(Index):
     name = 'coll'
     localname = 'Parameter Collections Index'
     shortname = 'Parameter Index'
@@ -326,9 +347,15 @@ class PrmCollectionIndex(Index):
         return (re, True)
 
 
-class PrmDomain(Domain):
-    name = 'prm'
-    label = 'Parameter collections'
+class CfgDomain(Domain):
+    name = 'cfg'
+    label = 'Parameter Collections'
+
+    obj_types = {
+        'coll':  ObjType('collection', 'coll'),
+        'entry':  ObjType('entry', 'entry'),
+        'def':  ObjType('definiton', 'def'),
+    }
 
     roles = {
         'coll': XRefRole(),
@@ -337,40 +364,39 @@ class PrmDomain(Domain):
     }
 
     directives = {
-        'definition': PrmDefinition,
-        'collection': PrmCollection,
+        'definition': CfgDefinition,
+        'collection': CfgCollection,
     }
 
     indices = {
-        PrmCollectionIndex,
-        PrmEntryIndex
+        CfgCollectionIndex,
+        CfgEntryIndex
     }
 
     initial_data = {
-        'objects': [],  # list of ObjectsEntry tuples
-        'coll2entries': {},  # collectionname -> ParamEntry tuples
-    }
-
-    obj_types = {
-        'collection':  ObjType('collection', 'coll'),
-        'entry':  ObjType('entry', 'entry'),
-        'definition':  ObjType('definiton', 'def'),
+        'objects': {'coll': [], # list of ObjectsEntry tuples
+                    'def': [],
+                    'entry': []},
+        'coll2entries': {},  # collection -> ParamEntry tuples
+        'coll2includes': {}, # collection -> set of includes
     }
 
 
     def get_full_qualified_name(self, node):
         """Return full qualified name for a given node"""
-        return "{}.{}.{}".format('prm',
+        return "{}.{}.{}".format('cfg',
                                  type(node).__name__,
                                  node.arguments[0])
 
     def get_objects(self):
-        for obj in self.data['objects']:
-            yield(obj)
+        for obj_list in self.data['objects'].values():
+            for obj in obj_list:
+                yield(obj)
 
     def resolve_xref(self, env, fromdocname, builder, typ,
                      target, node, contnode):
 
+        # TODO: this is inefficient!
         match = [(docname, anchor)
                  for name, dispname, typ_, docname, anchor, prio
                  in self.get_objects() if name == target and typ_ == typ]
@@ -385,15 +411,17 @@ class PrmDomain(Domain):
             return None
 
 
-def setup(app):
-    app.add_domain(PrmDomain)
 
-    app.add_node(prmcollection)
+
+def setup(app):
+    app.add_domain(CfgDomain)
+
+    app.add_node(cfgcollection)
     app.connect('doctree-resolved', CollectionNodeProcessor)
 
-    StandardDomain.initial_data['labels']['prm-coll-index'] =\
-        ('prm-coll', '', 'Parameter Collection Index')
-    StandardDomain.initial_data['labels']['prm-entry-index'] =\
-        ('prm-entry', '', 'Parameters Index')
+    StandardDomain.initial_data['labels']['cfg-coll-index'] =\
+        ('cfg-coll', '', 'Parameter Collection Index')
+    StandardDomain.initial_data['labels']['cfg-entry-index'] =\
+        ('cfg-entry', '', 'Parameters Index')
 
     return {'version': '0.1'}

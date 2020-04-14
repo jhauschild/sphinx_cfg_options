@@ -10,7 +10,7 @@ extensions = ['sphinx.ext.coverage',
               'sphinx.ext.autodoc',
               'sphinx.ext.napoleon',
               'sphinx.ext.todo',
-              'sphinxparameters']
+              'sphinx_config_parameters']
 
 source_suffix = '.rst'
 
@@ -22,7 +22,7 @@ needs_sphinx = '3.0'
 master_doc = 'index'
 
 # General information about the project.
-project = 'parameter-test'
+project = 'Config Parameters'
 copyright = u'2020, Johannes Hauschild'
 author = 'Johannes Hauschild'
 

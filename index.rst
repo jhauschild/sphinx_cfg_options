@@ -12,6 +12,6 @@ Welcome to sphinxparameter's documentation!
 Indices and tables
 ==================
 
-* :ref:`prm-coll-index`
-* :ref:`prm-entry-index`
+* :ref:`cfg-coll-index`
+* :ref:`cfg-entry-index`
 * :ref:`search`

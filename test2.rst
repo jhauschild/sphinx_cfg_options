@@ -1,11 +1,11 @@
 More tests
 ==========
 
-Link to :prm:coll:`TEBD`.
+Link to :cfg:coll:`TEBD`.
 
-Link to :prm:def:`DMRG`.
+Link to :cfg:def:`DMRG`.
 
-Link to nonexistent :prm:coll:`ABCD`.
+Link to nonexistent :cfg:coll:`ABCD`.
 
 .. currentmodule :: mylib
 
