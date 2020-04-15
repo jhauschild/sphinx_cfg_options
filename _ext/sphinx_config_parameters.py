@@ -2,6 +2,10 @@
 # TODO: use python domain?
 # TODO: allow/use recursive includes
 # TODO: allow/use reference for includes
+# TODO: rename role :cfg:entry: -> :cfg:option:?
+
+# TODO: def id could be defined through context!
+# TODO: use numpydoc-style definitions of parameters
 
 from collections import namedtuple
 
@@ -22,8 +26,14 @@ from sphinx.util.docutils import new_document
 from sphinx import addnodes
 
 
-ParamEntry = namedtuple('ParamEntry', "name, dispname, collection, docname, anchor, context")
+# CollEntry is used in CfgDomain.data['coll']
+CollEntry = namedtuple('CollEntry', "fullname, dispname, docname, anchor, includes")
+# ParamEntry is used in CfgDomain.data['entry2coll']
+ParamEntry = namedtuple('ParamEntry', "fullname, dispname, collection, docname, anchor, context")
+
+# ObjectsEntry is returned by Domain.get_objects()
 ObjectsEntry = namedtuple('ObjectsEntry', "name, dispname, typ, docname, anchor, prio")
+# IndexEntry is retured by Index.generate()
 IndexEntry = namedtuple('IndexEntry', "name, subtype, docname, anchor, extra, qualifier, descr")
 
 
@@ -45,8 +55,8 @@ class CollectionField(GroupedField):
 
         fieldname = nodes.field_name('', self.label)
         entries = [fieldarg for (fieldarg, content) in items]
-        collection = entries[0]  # ensured by adding CfgCollection.before_content().
-        coll_includes = env.domaindata['cfg']['coll2includes'].setdefault(collection, [])
+        collection = entries[0]  # ensured by CfgCollection.before_content().
+        coll_includes = env.domaindata['cfg']['coll'][collection].includes
         for incl in entries:
             if incl not in coll_includes:
                 coll_includes.append(incl)
@@ -102,7 +112,7 @@ class IndexedTypedField(PyTypedField):
         return nodes.field('', fieldname, fieldbody)
 
     def add_entry_target_and_index(self, fieldname, content, env, noindex=False):
-        collection = env.ref_context['cfg:def']
+        collection = env.ref_context['cfg:coll']
         context = env.ref_context.get('cfg:def-context', None)
         assert collection is not None
         name = "%s.%s" % (collection, fieldname)
@@ -110,7 +120,7 @@ class IndexedTypedField(PyTypedField):
         content['ids'].append(anchor)
         content['ids'].append("cfg-%s" % name)
 
-        param_entry = ParamEntry(name=name,
+        param_entry = ParamEntry(fullname=name,
                                  dispname=fieldname,
                                  collection=collection,
                                  docname=env.docname,
@@ -119,13 +129,6 @@ class IndexedTypedField(PyTypedField):
                                  )
         coll_entries = env.domaindata['cfg']['coll2entries'].setdefault(collection, [])
         coll_entries.append(param_entry)
-        obj_entry = ObjectsEntry(name=name,
-                                 dispname=fieldname,
-                                 typ="entry",
-                                 docname=env.docname,
-                                 anchor=anchor,
-                                 prio=0)
-        env.domaindata['cfg']['objects']['entry'].append(obj_entry)
 
 
 class CfgDefinition(ObjectDescription):
@@ -141,11 +144,10 @@ class CfgDefinition(ObjectDescription):
     doc_field_types = [
         IndexedTypedField('definition', label='Definitions',
                       names=('param', 'param', 'parameter', 'arg', 'argument', 'keyword', 'kwarg', 'kwparam'),
-                      rolename='make-entry-target',  # HACK
+                      rolename='',  # HACK
                       typerolename='py-class', typenames=('paramtype', 'type'),
                       can_collapse=True),
     ]
-
 
     def handle_signature(self, sig, signode):
         # TODO: use below; might want to use PyXRefMixin for that?
@@ -167,21 +169,21 @@ class CfgDefinition(ObjectDescription):
         signode['ids'].append(anchor)
         self.state.document.note_explicit_target(signode)
         if 'noindex' not in self.options:
-            obj_entry = ObjectsEntry(name, sig, 'def', self.env.docname, anchor, 0)
-            self.env.domaindata['cfg']['objects']['def'].append(obj_entry)
+            obj_entry = ObjectsEntry(name, sig, 'def', self.env.docname, anchor, 2)
+            self.env.domaindata['cfg']['def'].append(obj_entry)
 
     def before_content(self):
         # save context
         if self.names:
-            name = self.names[-1]  # what was returned from `handle_sig
-            self.env.ref_context['cfg:def'] = name
+            name = self.names[-1]  # what was returned by `handle_sig`
+            self.env.ref_context['cfg:coll'] = name
         if 'context' in self.options:
             self.env.ref_context['cfg:def-context'] = context = self.options['context']
         super().before_content()
 
     def after_content(self):
-        if 'cfg:def' in self.env.ref_context:
-            del self.env.ref_context['cfg:def']
+        if 'cfg:coll' in self.env.ref_context:
+            del self.env.ref_context['cfg:coll']
         super().after_content()
 
     def run(self):
@@ -232,7 +234,15 @@ class CfgCollection(CfgDefinition):
         self.state.document.note_explicit_target(signode)
         if 'noindex' not in self.options:
             obj_entry = ObjectsEntry(name, sig, 'coll', self.env.docname, node_id, 0)
-            self.env.domaindata['cfg']['objects']['coll'].append(obj_entry)
+            self.env.domaindata['cfg']['def'].append(obj_entry)
+            coll_entry = CollEntry(fullname=name,
+                                   dispname=name,
+                                   docname=obj_entry.docname,
+                                   anchor=obj_entry.anchor,
+                                   includes=[],  # filled in CollectionField.make_field
+                                   )
+            # TODO: warn about duplicates
+            self.env.domaindata['cfg']['coll'][name] = coll_entry
 
 
 class CollectionNodeProcessor:
@@ -246,11 +256,10 @@ class CollectionNodeProcessor:
 
     def process(self, doctree):
         coll2entries = self.env.domaindata['cfg']['coll2entries']
-        coll2includes = self.env.domaindata['cfg']['coll2includes']
 
         for node in doctree.traverse(cfgcollection):
             collection = node.collection # TODO: include more collections
-            includes = coll2includes[collection]
+            includes = self.domain.get_includes(collection)
             prio = dict((coll, i) for i, coll in enumerate(includes))
             entries = []
             for include in includes:
@@ -303,6 +312,126 @@ class CollectionNodeProcessor:
 
 
 
+
+class CfgDomain(Domain):
+    name = 'cfg'
+    label = 'Parameter Collections'
+
+    obj_types = {
+        'coll':  ObjType('collection', 'coll'),
+        'entry':  ObjType('entry', 'entry'),
+        'def':  ObjType('definiton', 'def'),
+    }
+
+    roles = {
+        'coll': XRefRole(),
+        'entry': XRefRole(),
+        'def': XRefRole(),
+    }
+
+    directives = {
+        'definition': CfgDefinition,
+        'collection': CfgCollection,
+    }
+
+    indices = {
+        # CfgCollectionIndex,  # TODO
+        # CfgEntryIndex
+    }
+
+    initial_data = {
+        'coll': {}, # coll_name -> CollEntry
+        'def': [],  # ObjectsEntry, includes 'def' and 'coll'
+        'coll2entries': {}, # coll_name -> List[ParamEntry]
+    }
+
+    def clear_doc(self, docname):
+        # bug/limiation: in general, we should clear `coll2includes` as well...
+        coll_data = self.data['coll']
+        for name, coll_entry in list(coll_data.items()):
+            if coll_entry.docname == docname:
+                del coll_data[name]
+        self.data['def'] = [entry for entry in self.data['def'] if entry.docname != docname]
+        for coll_name, entries_list in self.data['coll2entries'].items():
+            filered_entries = [entry for entry in entries_list if entry.docname != docname]
+            self.data['coll2entries'][coll_name] = filered_entries
+
+    # TODO: needed?
+    # def get_full_qualified_name(self, node):
+    #     """Return full qualified name for a given node"""
+    #     return "{}.{}.{}".format('cfg',
+    #                              type(node).__name__,
+    #                              node.arguments[0])
+
+    def get_objects(self):
+        for coll_entry in self.data['coll'].values():
+            yield ObjectsEntry(coll_entry.fullname,
+                               coll_entry.dispname,
+                               'coll',
+                               coll_entry.docname,
+                               coll_entry.anchor,
+                               prio=1)
+        for param_list in self.data['coll2entries'].values():
+            for param_entry in param_list:
+                yield ObjectsEntry(param_entry.fullname,
+                                   param_entry.dispname,
+                                   'coll',
+                                   param_entry.docname,
+                                   param_entry.anchor,
+                                   prio=1)
+        for obj_entry in self.data['def']:
+            yield obj_entry
+
+
+    def resolve_xref(self, env, fromdocname, builder, typ,
+                     target, node, contnode):
+        if not target:
+            return None
+        if typ == "coll":
+            coll = self.data['coll'].get(target, None)
+            if coll is None:
+                return None
+            return make_refnode(builder, fromdocname, coll.docname, coll.anchor, contnode,
+                                coll.dispname)
+        elif typ == "entry":
+            coll2entries = self.data['coll2entries']
+            split = target.split('.')
+            if len(split) < 2:
+                return None
+            for i in range(1, len(split)):
+                coll, entry_name = '.'.join(split[:i]), '.'.join(split[i:])
+                # TODO: match parameter from included collections
+                for param_entry in coll2entries.get(coll, []):
+                    if param_entry.dispname == entry_name:  # match!
+                        return make_refnode(builder,
+                                            fromdocname,
+                                            param_entry.docname,
+                                            param_entry.anchor,
+                                            contnode,
+                                            param_entry.dispname)
+            return None
+        return None
+
+
+    def get_includes(self, collection, recursive=True):
+        # TODO: option for recursive
+        coll2incl = {coll: entry.includes for coll, entry in self.data['coll'].items()}
+        includes = coll2incl.get(collection, [collection])[:]
+        assert includes[0] == collection
+        if recursive:
+            check_recursive = includes[1:]
+            checked = set([collection])
+            while len(check_recursive) > 0:
+                check = check_recursive.pop(0)
+                checked.add(check)
+                for incl in coll2incl.get(check, [])[1:]:
+                    if incl in includes:
+                        continue
+                    includes.append(incl)
+                    check_recursive.append(incl)
+        return includes
+
+
 # TODO: which indices do we need?
 class CfgEntryIndex(Index):
     name = 'entry'
@@ -314,7 +443,7 @@ class CfgEntryIndex(Index):
         for obj in self.domain.get_objects():
             if obj.typ != "entry":
                 continue
-            collection = obj.name.rsplit('.', 1)[0]
+            collection = obj.name.rsplit('.', 1)[0] # TODO: note the best way: not unique?
             ind_entry = IndexEntry(name=obj.dispname,
                                    subtype=0,
                                    docname=obj.docname,
@@ -347,81 +476,15 @@ class CfgCollectionIndex(Index):
         return (re, True)
 
 
-class CfgDomain(Domain):
-    name = 'cfg'
-    label = 'Parameter Collections'
-
-    obj_types = {
-        'coll':  ObjType('collection', 'coll'),
-        'entry':  ObjType('entry', 'entry'),
-        'def':  ObjType('definiton', 'def'),
-    }
-
-    roles = {
-        'coll': XRefRole(),
-        'entry': XRefRole(),
-        'def': XRefRole(),
-    }
-
-    directives = {
-        'definition': CfgDefinition,
-        'collection': CfgCollection,
-    }
-
-    indices = {
-        CfgCollectionIndex,
-        CfgEntryIndex
-    }
-
-    initial_data = {
-        'objects': {'coll': [], # list of ObjectsEntry tuples
-                    'def': [],
-                    'entry': []},
-        'coll2entries': {},  # collection -> ParamEntry tuples
-        'coll2includes': {}, # collection -> set of includes
-    }
-
-
-    def get_full_qualified_name(self, node):
-        """Return full qualified name for a given node"""
-        return "{}.{}.{}".format('cfg',
-                                 type(node).__name__,
-                                 node.arguments[0])
-
-    def get_objects(self):
-        for obj_list in self.data['objects'].values():
-            for obj in obj_list:
-                yield(obj)
-
-    def resolve_xref(self, env, fromdocname, builder, typ,
-                     target, node, contnode):
-
-        # TODO: this is inefficient!
-        match = [(docname, anchor)
-                 for name, dispname, typ_, docname, anchor, prio
-                 in self.get_objects() if name == target and typ_ == typ]
-
-        if len(match) > 0:
-            todocname = match[0][0]
-            targ = match[0][1]
-
-            return make_refnode(builder, fromdocname, todocname, targ, contnode, targ)
-        else:
-            # found nothing
-            return None
-
-
-
-
 def setup(app):
     app.add_domain(CfgDomain)
 
     app.add_node(cfgcollection)
     app.connect('doctree-resolved', CollectionNodeProcessor)
 
-    StandardDomain.initial_data['labels']['cfg-coll-index'] =\
-        ('cfg-coll', '', 'Parameter Collection Index')
-    StandardDomain.initial_data['labels']['cfg-entry-index'] =\
-        ('cfg-entry', '', 'Parameters Index')
+    # StandardDomain.initial_data['labels']['cfg-coll-index'] =\
+    #     ('cfg-coll', '', 'Parameter Collection Index')
+    # StandardDomain.initial_data['labels']['cfg-entry-index'] =\
+    #     ('cfg-entry', '', 'Parameters Index')
 
     return {'version': '0.1'}

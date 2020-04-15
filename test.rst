@@ -32,7 +32,7 @@ directive to document another parameter for all vehicles.
 
 .. cfg:definition:: Vehicle
 
-   :param str fuel: Type of the used fuel, can be 'gasoline' or 'electric'.
+   :param str fuel: Type of the used fuel, can be 'gasoline' or 'diesel'.
 
 
 Now we want to setup a factory for cars.
@@ -46,21 +46,20 @@ This is indicated by a ``:include Vehicle:`` in the body of the collection:
    :param int doors: Number of doors.
 
 You can also link to the collections with :cfg:coll:`Vehicle` and :cfg:coll:`Car`,
-and to individual parameters like :cfg:entry:`Vehicle.max_speed` or :cfg:entry:`Car.max_speed`, 
-:cfg:entry:`Model.second`.
+and to individual parameters like :cfg:entry:`Vehicle.max_speed` or :cfg:entry:`Car.max_speed`.
 
 Even one step further, we can have a collection which just includes other collections. Note that the include is recursive by
 default. In case of duplicate parameter keys, all are shown.
 
-.. cfg:collection:: BMW
+.. cfg:collection:: ElectricCar
 
    :include Car:
-   :param int doors: The doors.
+   :param int fuel: In addition to the :cfg:entry:`Vehicle.fuel`, we allow the value 'electric'.
 
 
 Now we've covered everything. As a final remark: you can include a collection of the same name at multiple positions in
 the documentation. (And you don't have to set the ``:include Car:`` again in that case)
 
-.. cfg:collection:: BMW
-
+.. cfg:collection:: ElectricCar
+    :noindex:
 
