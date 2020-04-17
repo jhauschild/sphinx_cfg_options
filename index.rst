@@ -13,5 +13,5 @@ Indices and tables
 ==================
 
 * :ref:`cfg-coll-index`
-* :ref:`cfg-entry-index`
+* :ref:`cfg-option-index`
 * :ref:`search`

@@ -126,7 +126,7 @@ class IndexedTypedField(PyTypedField):
         context = env.ref_context.get('cfg:def-context', None)
         assert collection is not None
         name = "%s.%s" % (collection, fieldname)
-        anchor = "cfg-entry-%d" % env.new_serialno('cfg-entry')
+        anchor = "cfg-option-%d" % env.new_serialno('cfg-option')
         content['ids'].append(anchor)
         content['ids'].append("cfg-%s" % name)
 
@@ -319,6 +319,49 @@ class CollectionNodeProcessor:
         return node
 
 
+# TODO: which indices do we need?
+class CfgOptionIndex(Index):
+    name = 'option'
+    localname = 'Config Option Index'
+    shortname = 'Config Option'
+
+    def generate(self, docnames=None):
+        content = {}
+        for collection, options in self.domain.data['coll2options'].items():
+            for option_entry in options:
+                ind_entry = IndexEntry(name=option_entry.dispname,
+                                       subtype=0,
+                                       docname=option_entry.docname,
+                                       anchor=option_entry.anchor,
+                                       extra=collection,
+                                       qualifier='',
+                                       descr='')
+                content.setdefault(collection, []).append(ind_entry)
+        content = [(k, content[k]) for k in sorted(content.keys())]
+        return (content, True)
+
+
+class CfgCollectionIndex(Index):
+    name = 'coll'
+    localname = 'Config Index'
+    shortname = 'Config Index'
+
+    def generate(self, docnames=None):
+        content = {}
+        items = self.domain.get_objects()
+        items = [entry for entry in items if entry.typ != "option"]
+        items = sorted(items, key=lambda item: item[1])
+        for name, dispname, typ, docname, anchor, prio in items:
+            lis = content.setdefault(dispname[0].upper(), [])
+            lis.append((
+                dispname, 0, docname,
+                anchor,
+                docname, '', typ
+            ))
+        re = [(k, v) for k, v in sorted(content.items())]
+        return (re, True)
+
+
 class CfgDomain(Domain):
     name = 'cfg'
     label = 'Parameter Collections'
@@ -341,8 +384,8 @@ class CfgDomain(Domain):
     }
 
     indices = {
-        # CfgCollectionIndex,  # TODO
-        # CfgEntryIndex
+        CfgCollectionIndex,
+        CfgOptionIndex,
     }
 
     initial_data = {
@@ -476,59 +519,15 @@ class CfgDomain(Domain):
         return includes
 
 
-# TODO: which indices do we need?
-class CfgOptionIndex(Index):
-    name = 'options'
-    localname = 'Config Options Index'
-    shortname = 'Config Options'
-
-    def generate(self, docnames=None):
-        content = {}
-        for obj in self.domain.get_objects():
-            if obj.typ != "option":
-                continue
-            collection = obj.name.rsplit('.', 1)[0] # TODO: note the best way: not unique?
-            ind_entry = IndexEntry(name=obj.dispname,
-                                   subtype=0,
-                                   docname=obj.docname,
-                                   anchor=obj.anchor,
-                                   extra=collection,
-                                   qualifier='',
-                                   descr='')
-            content.setdefault(collection, []).append(ind_entry)
-        content = [(k, content[k]) for k in sorted(content.keys())]
-        return (content, True)
-
-
-class CfgCollectionIndex(Index):
-    name = 'coll'
-    localname = 'Parameter Collections Index'
-    shortname = 'Parameter Index'
-
-    def generate(self, docnames=None):
-        content = {}
-        items = self.domain.get_objects()
-        items = sorted(items, key=lambda item: item[1])
-        for name, dispname, typ, docname, anchor, prio in items:
-            lis = content.setdefault(dispname[0].upper(), [])
-            lis.append((
-                dispname, 0, docname,
-                anchor,
-                docname, '', typ
-            ))
-        re = [(k, v) for k, v in sorted(content.items())]
-        return (re, True)
-
-
 def setup(app):
     app.add_domain(CfgDomain)
 
     app.add_node(cfgcollection)
     app.connect('doctree-resolved', CollectionNodeProcessor)
 
-    # StandardDomain.initial_data['labels']['cfg-coll-index'] =\
-    #     ('cfg-coll', '', 'Parameter Collection Index')
-    # StandardDomain.initial_data['labels']['cfg-entry-index'] =\
-    #     ('cfg-entry', '', 'Parameters Index')
+    StandardDomain.initial_data['labels']['cfg-coll-index'] =\
+        ('cfg-coll', '', 'Config Definiton Index')
+    StandardDomain.initial_data['labels']['cfg-option-index'] =\
+        ('cfg-option', '', 'Config Options Index')
 
     return {'version': '0.1'}
