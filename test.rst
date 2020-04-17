@@ -30,7 +30,8 @@ In the function that sets up the engine, we notice that we need another
 parameter: the type of the fuel. So we add a ``.. cfg:definition:: Vehicle``
 directive to document another parameter for all vehicles.
 
-.. cfg:definition:: Vehicle
+.. cfg:collection:: Vehicle
+   :noindex:
 
    :param str fuel: Type of the used fuel, can be 'gasoline' or 'diesel'.
 
@@ -45,7 +46,8 @@ This is indicated by a ``:include Vehicle:`` in the body of the collection:
    :include Vehicle:
 
 You can also link to the collections with :cfg:coll:`Vehicle` and :cfg:coll:`Car`,
-and to individual parameters like :cfg:option:`Vehicle.max_speed` or :cfg:option:`Car.max_speed`.
+and to individual parameters like :cfg:option:`Vehicle.max_speed` or :cfg:option:`Car.max_speed`, pointing to the same
+location.
 
 Of course, a new collection can also define it's own parameters in addition to using the `include`.
 Also, note that the include is recursive, as shown in the following example.
@@ -54,8 +56,8 @@ In case of duplicated parameter keys, all definitions are listed.
 .. cfg:collection:: ElectricCar
 
    :include Car:
-   :param int fuel: In addition to :cfg:option:`Vehicle.fuel`, we allow the value 'electric'.
-   :param float max_speed: Same as :cfg:option:`Vehicle.max_speed`, but limited to at most 100mph to avoid drowning the battery too much.
+   :param int fuel: Additional choice ``'battery'`` on top of what :cfg:option:`Vehicle.fuel` defines.
+   :param bool hybrid: Wheter the car has both an internal combustion engine and an electric motor, or not.
 
 As you might have expected, the references :cfg:option:`Vehicle.max_speed` and :cfg:option:`ElectricCar.max_speed` now
 point to the two different definitions.

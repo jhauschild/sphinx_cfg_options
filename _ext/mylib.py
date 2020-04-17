@@ -14,7 +14,7 @@ class B:
 class A:
     """My A class.
 
-    .. cfg:definition :: DMRG
+    .. cfg:collection :: DMRG
 
         :param first: Describe the `first` parameter, context ``alowed``.
         :type first: int
@@ -41,7 +41,8 @@ class A:
     def show_params(self):
         """Print keys of :attr:`params`.
 
-        .. cfg:definition :: DMRG
+        .. cfg:collection :: DMRG
+            :noindex:
 
             :param first: Describe the `first` parameter, context ``alowed``.
             :type first: int
@@ -57,7 +58,8 @@ class Asub(A):
 def complicated_function(a, b, c, params):
     """A complicated function.
 
-    .. cfg:definition :: DMRG
+    .. cfg:collection :: DMRG
+        :noindex:
 
         :param int Na: Number of repetitions for `a`.
 
