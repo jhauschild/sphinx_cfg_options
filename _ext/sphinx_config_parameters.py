@@ -1,11 +1,16 @@
 # TODO: config values, e.g. 'recursive'?
 # TODO: use python domain?
-# TODO: allow/use recursive includes
-# TODO: allow/use reference for includes
-# TODO: rename role :cfg:entry: -> :cfg:option:?
+
+# TODO: allow includes in definitions as well;
+# use `CollEntry` with additional `typ` in domain.data['def'] for *all* definitions
 
 # TODO: def id could be defined through context!
 # TODO: use numpydoc-style definitions of parameters
+
+# TODO: should we switch to defining entries as separate directives,
+# instead of hacking the fields to contain anchors?
+# That's how it should work, really...
+
 
 from collections import namedtuple
 
@@ -25,11 +30,15 @@ from sphinx.util.nodes import make_id, make_refnode
 from sphinx.util.docutils import new_document
 from sphinx import addnodes
 
+from sphinx.util import logging
+
+logger = logging.getLogger(__name__)
 
 # CollEntry is used in CfgDomain.data['coll']
 CollEntry = namedtuple('CollEntry', "fullname, dispname, docname, anchor, includes")
-# ParamEntry is used in CfgDomain.data['entry2coll']
-ParamEntry = namedtuple('ParamEntry', "fullname, dispname, collection, docname, anchor, context")
+
+# OptionEntry is used in CfgDomain.data['coll2options']
+OptionEntry = namedtuple('OptionEntry', "fullname, dispname, collection, docname, anchor, context")
 
 # ObjectsEntry is returned by Domain.get_objects()
 ObjectsEntry = namedtuple('ObjectsEntry', "name, dispname, typ, docname, anchor, prio")
@@ -38,7 +47,7 @@ IndexEntry = namedtuple('IndexEntry', "name, subtype, docname, anchor, extra, qu
 
 
 class cfgcollection(nodes.General, nodes.Element):
-    """A node to be replaced by a list of entries for a given `collection`.
+    """A node to be replaced by a list of options for a given `collection`.
 
     The replacement happens in :meth:`CollectionNodeProcessor.process`."""
     def __init__(self, collection, can_collapse=True):
@@ -50,16 +59,17 @@ class cfgcollection(nodes.General, nodes.Element):
 class CollectionField(GroupedField):
     """Field collecting all the `fieldarg` given in a `cfgcollection` node."""
     def make_field(self, types, domain, items, env=None):
-        """Like TypedField.make_field(), but also call `self.add_entry_target_and_index`."""
         assert env is not None   # don't expect this to happen
 
         fieldname = nodes.field_name('', self.label)
         entries = [fieldarg for (fieldarg, content) in items]
         collection = entries[0]  # ensured by CfgCollection.before_content().
-        coll_includes = env.domaindata['cfg']['coll'][collection].includes
-        for incl in entries:
-            if incl not in coll_includes:
-                coll_includes.append(incl)
+        coll_entry = env.domaindata['cfg']['coll'].get(collection, None)
+        if coll_entry is not None:
+            coll_includes = coll_entry.includes
+            for incl in entries:
+                if incl not in coll_includes:
+                    coll_includes.append(incl)
         bodynode = cfgcollection(collection, self.can_collapse)
         fieldbody = nodes.field_body('', bodynode)
         return nodes.field('', fieldname, fieldbody)
@@ -120,15 +130,15 @@ class IndexedTypedField(PyTypedField):
         content['ids'].append(anchor)
         content['ids'].append("cfg-%s" % name)
 
-        param_entry = ParamEntry(fullname=name,
-                                 dispname=fieldname,
-                                 collection=collection,
-                                 docname=env.docname,
-                                 anchor=anchor,
-                                 context=context,
-                                 )
-        coll_entries = env.domaindata['cfg']['coll2entries'].setdefault(collection, [])
-        coll_entries.append(param_entry)
+        option_entry = OptionEntry(fullname=name,
+                                  dispname=fieldname,
+                                  collection=collection,
+                                  docname=env.docname,
+                                  anchor=anchor,
+                                  context=context,
+                                  )
+        coll_entries = env.domaindata['cfg']['coll2options'].setdefault(collection, [])
+        coll_entries.append(option_entry)
 
 
 class CfgDefinition(ObjectDescription):
@@ -157,7 +167,6 @@ class CfgDefinition(ObjectDescription):
         signode += addnodes.desc_annotation('Config ', 'Config ')
         signame = addnodes.pending_xref(sig, nodes.Text(sig),
                                         refdomain='cfg', reftype='coll', reftarget=sig)
-        anchor = "cfg-entry-%d" % self.env.new_serialno('entry')
         signode += addnodes.desc_name(sig, '', signame)
 
         name = sig  # TODO make name a tuple `(fullname, dispname)` as for PyObject?
@@ -239,8 +248,13 @@ class CfgCollection(CfgDefinition):
                                    dispname=name,
                                    docname=obj_entry.docname,
                                    anchor=obj_entry.anchor,
-                                   includes=[],  # filled in CollectionField.make_field
+                                   includes=[name],
                                    )
+            other = self.env.domaindata['cfg']['coll'].get(name, None)
+            if other:
+                logger.warning('duplicate object description of collection %s, '
+                               'other instance in %s, use :noindex: for one of them',
+                               name, other.docname, location=signode)
             # TODO: warn about duplicates
             self.env.domaindata['cfg']['coll'][name] = coll_entry
 
@@ -255,19 +269,13 @@ class CollectionNodeProcessor:
         self.process(doctree)
 
     def process(self, doctree):
-        coll2entries = self.env.domaindata['cfg']['coll2entries']
+        coll2options = self.env.domaindata['cfg']['coll2options']
 
         for node in doctree.traverse(cfgcollection):
             collection = node.collection # TODO: include more collections
-            includes = self.domain.get_includes(collection)
-            prio = dict((coll, i) for i, coll in enumerate(includes))
-            entries = []
-            for include in includes:
-                for entry in coll2entries.get(include, []):
-                    entries.append(entry)
-            entries = sorted(entries, key=lambda e: (e.dispname.lower(), prio[entry.collection]))
+            options = self.domain.collections.get(collection, [])
 
-            new_content = [self.create_entry_reference(entry, collection) for entry in entries]
+            new_content = [self.create_option_reference(o, collection) for o in options]
             if len(new_content) > 1 or not node.can_collapse:
                 listnode = nodes.bullet_list()
                 for entry in new_content:
@@ -276,21 +284,21 @@ class CollectionNodeProcessor:
             node.replace_self(new_content)
 
 
-    def create_entry_reference(self, entry, collection):
+    def create_option_reference(self, option, collection):
 
         # TODO: include link to definition and name category if different
 
         par = nodes.paragraph()
-        # ParamEntry = namedtuple('ParamEntry', "name, dispname, collection, docname, anchor, context")
-        innernode = addnodes.literal_strong(entry.dispname, entry.dispname)
-        par += self.make_refnode(entry.docname, entry.anchor, innernode)
-        if entry.collection != collection:
+        # OptionEntry = namedtuple('OptionEntry', "name, dispname, collection, docname, anchor, context")
+        innernode = addnodes.literal_strong(option.dispname, option.dispname)
+        par += self.make_refnode(option.docname, option.anchor, innernode)
+        if option.collection != collection:
             par += nodes.Text(' (from ')
-            par += self._make_collection_xref(entry.collection)  # TODO crossref!
+            par += self._make_collection_xref(option.collection)
             par += nodes.Text(')')
-        if entry.context is not None:
+        if option.context is not None:
             par += nodes.Text(" in ")
-            par += addnodes.literal_emphasis(entry.context, entry.context)  # TODO: crossref
+            par += addnodes.literal_emphasis(option.context, option.context)
         return par
 
     def make_refnode(self, docname, anchor, innernode):
@@ -311,21 +319,19 @@ class CollectionNodeProcessor:
         return node
 
 
-
-
 class CfgDomain(Domain):
     name = 'cfg'
     label = 'Parameter Collections'
 
     obj_types = {
         'coll':  ObjType('collection', 'coll'),
-        'entry':  ObjType('entry', 'entry'),
+        'option':  ObjType('option', 'option'),
         'def':  ObjType('definiton', 'def'),
     }
 
     roles = {
         'coll': XRefRole(),
-        'entry': XRefRole(),
+        'option': XRefRole(),
         'def': XRefRole(),
     }
 
@@ -341,20 +347,19 @@ class CfgDomain(Domain):
 
     initial_data = {
         'coll': {}, # coll_name -> CollEntry
-        'def': [],  # ObjectsEntry, includes 'def' and 'coll'
-        'coll2entries': {}, # coll_name -> List[ParamEntry]
+        'def': [],  # ObjectsEntry
+        'coll2options': {}, # coll_name -> List[OptionEntry]
     }
 
     def clear_doc(self, docname):
-        # bug/limiation: in general, we should clear `coll2includes` as well...
         coll_data = self.data['coll']
         for name, coll_entry in list(coll_data.items()):
             if coll_entry.docname == docname:
                 del coll_data[name]
         self.data['def'] = [entry for entry in self.data['def'] if entry.docname != docname]
-        for coll_name, entries_list in self.data['coll2entries'].items():
+        for coll_name, entries_list in self.data['coll2options'].items():
             filered_entries = [entry for entry in entries_list if entry.docname != docname]
-            self.data['coll2entries'][coll_name] = filered_entries
+            self.data['coll2options'][coll_name] = filered_entries
 
     # TODO: needed?
     # def get_full_qualified_name(self, node):
@@ -371,13 +376,13 @@ class CfgDomain(Domain):
                                coll_entry.docname,
                                coll_entry.anchor,
                                prio=1)
-        for param_list in self.data['coll2entries'].values():
-            for param_entry in param_list:
-                yield ObjectsEntry(param_entry.fullname,
-                                   param_entry.dispname,
+        for param_list in self.data['coll2options'].values():
+            for option_entry in param_list:
+                yield ObjectsEntry(option_entry.fullname,
+                                   option_entry.dispname,
                                    'coll',
-                                   param_entry.docname,
-                                   param_entry.anchor,
+                                   option_entry.docname,
+                                   option_entry.anchor,
                                    prio=1)
         for obj_entry in self.data['def']:
             yield obj_entry
@@ -393,28 +398,67 @@ class CfgDomain(Domain):
                 return None
             return make_refnode(builder, fromdocname, coll.docname, coll.anchor, contnode,
                                 coll.dispname)
-        elif typ == "entry":
-            coll2entries = self.data['coll2entries']
+        elif typ == "option":
+            coll2options = self.data['coll2options']
             split = target.split('.')
             if len(split) < 2:
                 return None
             for i in range(1, len(split)):
                 coll, entry_name = '.'.join(split[:i]), '.'.join(split[i:])
-                # TODO: match parameter from included collections
-                for param_entry in coll2entries.get(coll, []):
-                    if param_entry.dispname == entry_name:  # match!
+                for option_entry in self.collections.get(coll, []):
+                    if option_entry.dispname == entry_name:  # match!
                         return make_refnode(builder,
                                             fromdocname,
-                                            param_entry.docname,
-                                            param_entry.anchor,
+                                            option_entry.docname,
+                                            option_entry.anchor,
                                             contnode,
-                                            param_entry.dispname)
+                                            option_entry.dispname)
             return None
         return None
 
 
-    def get_includes(self, collection, recursive=True):
-        # TODO: option for recursive
+    @property
+    def collections(self):
+        """dict coll_name -> List[OptionEntry], recursively with `includes`."""
+        collections = getattr(self, '_collections', None)
+        if collections is None:
+            self._collections = collections = self._get_collections_with_includes()
+        return collections
+
+    @property
+    def includes(self):
+        """dict coll_name -> List[coll_name], recursively."""
+        includes = getattr(self, '_includes', None)
+        if includes is None:
+            self._includes = includes = {}
+            for coll in self.data['coll'].keys():
+                if coll not in includes:  # _get_recursive_includes might have inserted it already
+                    includes[coll] = self._get_recursive_includes(coll)
+        return includes
+
+    def _get_collections_with_includes(self):
+        # build recursive collections from "flat" collections in self.data
+        res = {}
+        coll2options = self.data['coll2options']
+        coll_names = set(self.data['coll'].keys()).union(set(coll2options.keys()))
+        for coll in coll_names:
+            includes = self.includes.get(coll, [coll])
+            prio = dict((c_incl, i) for i, c_incl in enumerate(includes))
+            options = []
+            for coll_incl in includes:
+                options.extend(coll2options.get(coll_incl, []))
+            res[coll] = sorted(options, key=lambda e: (e.dispname.lower(), prio[e.collection]))
+        return res
+
+    def _get_recursive_includes(self, collection):
+        recursive = True # TODO: option to disable recursive includes
+        coll_entry = self.data['coll'].get(collection, None)
+        if coll_entry is None:
+            logger.warning("asked to include unknown collection %s", collection)
+            return []
+
+        # TODO: rewrite this to make recursive use of the method itself.
+        # order should be given in the same way as methods are resolved for classes!
         coll2incl = {coll: entry.includes for coll, entry in self.data['coll'].items()}
         includes = coll2incl.get(collection, [collection])[:]
         assert includes[0] == collection
@@ -433,15 +477,15 @@ class CfgDomain(Domain):
 
 
 # TODO: which indices do we need?
-class CfgEntryIndex(Index):
-    name = 'entry'
-    localname = 'Parameters Index'
-    shortname = 'Parameters'
+class CfgOptionIndex(Index):
+    name = 'options'
+    localname = 'Config Options Index'
+    shortname = 'Config Options'
 
     def generate(self, docnames=None):
         content = {}
         for obj in self.domain.get_objects():
-            if obj.typ != "entry":
+            if obj.typ != "option":
                 continue
             collection = obj.name.rsplit('.', 1)[0] # TODO: note the best way: not unique?
             ind_entry = IndexEntry(name=obj.dispname,

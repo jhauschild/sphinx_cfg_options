@@ -43,22 +43,25 @@ This is indicated by a ``:include Vehicle:`` in the body of the collection:
 .. cfg:collection:: Car
 
    :include Vehicle:
-   :param int doors: Number of doors.
 
 You can also link to the collections with :cfg:coll:`Vehicle` and :cfg:coll:`Car`,
-and to individual parameters like :cfg:entry:`Vehicle.max_speed` or :cfg:entry:`Car.max_speed`.
+and to individual parameters like :cfg:option:`Vehicle.max_speed` or :cfg:option:`Car.max_speed`.
 
-Even one step further, we can have a collection which just includes other collections. Note that the include is recursive by
-default. In case of duplicate parameter keys, all are shown.
+Of course, a new collection can also define it's own parameters in addition to using the `include`.
+Also, note that the include is recursive, as shown in the following example.
+In case of duplicated parameter keys, all definitions are listed.
 
 .. cfg:collection:: ElectricCar
 
    :include Car:
-   :param int fuel: In addition to the :cfg:entry:`Vehicle.fuel`, we allow the value 'electric'.
+   :param int fuel: In addition to :cfg:option:`Vehicle.fuel`, we allow the value 'electric'.
+   :param float max_speed: Same as :cfg:option:`Vehicle.max_speed`, but limited to at most 100mph to avoid drowning the battery too much.
 
+As you might have expected, the references :cfg:option:`Vehicle.max_speed` and :cfg:option:`ElectricCar.max_speed` now
+point to the two different definitions.
 
-Now we've covered everything. As a final remark: you can include a collection of the same name at multiple positions in
-the documentation. (And you don't have to set the ``:include Car:`` again in that case)
+One last hint: you can include a collection of the same name at multiple positions in the documentation.
+However, all but one should have `:noindex:` set, and only the one not having `:noindex:` can define the includes.
 
 .. cfg:collection:: ElectricCar
     :noindex:
