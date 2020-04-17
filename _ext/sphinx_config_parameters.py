@@ -1,8 +1,13 @@
 # TODO: config values, e.g. 'recursive'?
 # TODO: use python domain?
 
+# TODO rename collection -> config
+# TODO
+
+
 # TODO: allow includes in definitions as well;
-# use `CollEntry` with additional `typ` in domain.data['def'] for *all* definitions
+# use `ConfigEntry` with additional `typ` in domain.data['def'] for *all* definitions
+# TODO: don't use fields, instead define a separate `CfgOption` directive
 
 # TODO: def id could be defined through context!
 # TODO: use numpydoc-style definitions of parameters
@@ -29,13 +34,14 @@ from sphinx.directives import ObjectDescription
 from sphinx.util.nodes import make_id, make_refnode
 from sphinx.util.docutils import new_document
 from sphinx import addnodes
+from sphinx.util.docutils import SphinxDirective
 
 from sphinx.util import logging
 
 logger = logging.getLogger(__name__)
 
-# CollEntry is used in CfgDomain.data['coll']
-CollEntry = namedtuple('CollEntry', "fullname, dispname, typ, docname, anchor, includes")
+# ConfigEntry is used in CfgDomain.data['coll']
+ConfigEntry = namedtuple('ConfigEntry', "fullname, dispname, typ, docname, anchor, includes")
 
 # OptionEntry is used in CfgDomain.data['coll2options']
 OptionEntry = namedtuple('OptionEntry', "fullname, dispname, collection, docname, anchor, context")
@@ -123,8 +129,8 @@ class IndexedTypedField(PyTypedField):
         return nodes.field('', fieldname, fieldbody)
 
     def add_entry_target_and_index(self, fieldname, content, env, noindex=False):
-        collection = env.ref_context['cfg:coll']
-        context = env.ref_context.get('cfg:def-context', None)
+        collection = env.ref_context['cfg:config']
+        context = env.ref_context.get('cfg:context', None)
         assert collection is not None
         name = "%s.%s" % (collection, fieldname)
         anchor = "cfg-option-%d" % env.new_serialno('cfg-option')
@@ -149,6 +155,7 @@ class CfgDefinition(ObjectDescription):
 
     option_spec = {
         'noindex': directives.flag,
+        'nolist': directives.flag,  # TODO use this
         'context': directives.unchanged,
     }
 
@@ -185,7 +192,7 @@ class CfgDefinition(ObjectDescription):
         if 'noindex' not in self.options:
             obj_entry = ObjectsEntry(name, sig, 'coll', self.env.docname, node_id, 0)
             self.env.domaindata['cfg']['def'].append(obj_entry)
-            coll_entry = CollEntry(fullname=name,
+            coll_entry = ConfigEntry(fullname=name,
                                    dispname=name,
                                    typ="coll",
                                    docname=obj_entry.docname,
@@ -200,37 +207,35 @@ class CfgDefinition(ObjectDescription):
             # TODO: warn about duplicates
             self.env.domaindata['cfg']['coll'][name] = coll_entry
 
-        anchor = "cfg-def-%d" % self.env.new_serialno('cfg-def')
-        signode['ids'].append(anchor)
-        self.state.document.note_explicit_target(signode)
-        if 'noindex' not in self.options:
-            obj_entry = ObjectsEntry(name, sig, 'def', self.env.docname, anchor, 2)
+            # TODO: rewrite this
+            obj_entry = ObjectsEntry(name, sig, 'def', self.env.docname, node_id, 2)
             self.env.domaindata['cfg']['def'].append(obj_entry)
 
     def before_content(self):
         # save context
         if self.names:
             name = self.names[-1]  # what was returned by `handle_sig`
-            self.env.ref_context['cfg:coll'] = name
+            self.env.ref_context['cfg:config'] = name
         if 'context' in self.options:
-            self.env.ref_context['cfg:def-context'] = context = self.options['context']
+            self.env.ref_context['cfg:context'] = context = self.options['context']
 
         # HACK: insert `:include <name>:` line before content
         self.content.insert(0, ":include " + name + ":", (self.state.document, ), offset=0)
         super().before_content()
 
-    def after_content(self):
-        if 'cfg:coll' in self.env.ref_context:
-            del self.env.ref_context['cfg:coll']
-        super().after_content()
+    # def after_content(self):
+    #     if 'cfg:coll' in self.env.ref_context:
+    #         del self.env.ref_context['cfg:coll']
+    #     super().after_content()
 
     def run(self):
         context_name = self.env.temp_data.get('object', None)
         if isinstance(context_name, tuple):
             context_name = context_name[0]
-        self.env.ref_context['cfg:def-context'] = context_name
+        self.env.ref_context['cfg:context'] = context_name
         res = super().run()
         return res
+
 
 
 
@@ -238,9 +243,76 @@ class CfgOption(ObjectDescription):
     option_spec = {
         'noindex': directives.flag,
         'context': directives.unchanged,
+        'config': directives.unchanged,
+        'type': directives.unchanged,
+        'value': directives.unchanged,
     }
 
+    def handle_signature(self, sig, signode):
+        name = sig  # TODO make name a tuple `(fullname, dispname)` as for PyObject?
+        # TODO: use below; might want to use PyXRefMixin for that?
+        config = self.options.get('config', self.env.ref_context.get('cfg:config', None))
+        if config is None:
+            logger.warning("config option with unknown config")
+            config = "UNKNOWN"
+        fullname = config + '.' + name
+        signode += addnodes.desc_annotation('option ', 'option ')
+        signode += addnodes.pending_xref(sig, addnodes.desc_addname(config, config),
+                                         refdomain='cfg', reftype='coll', reftarget=config)
+        signode += addnodes.desc_addname('', '.')
 
+        signode += addnodes.desc_name(sig, '', nodes.Text(sig))
+
+        typ = self.options.get('type')
+        if typ:
+            signode += addnodes.desc_annotation(typ, ': ' + typ)
+
+        value = self.options.get('value')
+        if value:
+            signode += addnodes.desc_annotation(value, ' = ' + value)
+
+
+        return fullname, config
+
+
+    def add_target_and_index(self, name_config, sig, signode):
+        fullname, config = name_config
+        context = self.options.get('config', self.env.ref_context.get('cfg:config', None))
+        node_id = make_id(self.env, self.state.document, 'cfg-opt', fullname)
+        signode['ids'].append(node_id)
+        self.state.document.note_explicit_target(signode)
+        if 'noindex' not in self.options:
+            option_entry = OptionEntry(fullname=fullname,
+                                       dispname=fullname[len(config) + 1:],
+                                       collection=config,
+                                       docname=self.env.docname,
+                                       anchor=node_id,
+                                       context=context,
+                                       )
+            coll_entries = self.env.domaindata['cfg']['coll2options'].setdefault(config, [])
+            coll_entries.append(option_entry)
+
+
+class CfgCurrentConfig(SphinxDirective):
+    """
+    This directive is just to tell Sphinx that we're documenting
+    stuff in module foo, but links to module foo won't lead here.
+    """
+
+    has_content = False
+    required_arguments = 1
+    optional_arguments = 0
+    final_argument_whitespace = False
+    option_spec = {}  # type: Dict
+
+    def run(self):
+        # TODO: python context?
+        configname = self.arguments[0].strip()
+        if configname == 'None':
+            self.env.ref_context.pop('cfg:config', None)
+        else:
+            self.env.ref_context['cfg:config'] = configname
+        return []
 
 
 class CollectionNodeProcessor:
@@ -364,6 +436,8 @@ class CfgDomain(Domain):
 
     directives = {
         'collection': CfgDefinition,
+        'currentconfig': CfgCurrentConfig,
+        'myoption': CfgOption,
     }
 
     indices = {
@@ -372,7 +446,7 @@ class CfgDomain(Domain):
     }
 
     initial_data = {
-        'coll': {}, # coll_name -> CollEntry
+        'coll': {}, # coll_name -> ConfigEntry
         'def': [],  # ObjectsEntry
         'coll2options': {}, # coll_name -> List[OptionEntry]
     }

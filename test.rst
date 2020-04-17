@@ -45,6 +45,12 @@ This is indicated by a ``:include Vehicle:`` in the body of the collection:
 
    :include Vehicle:
 
+   .. cfg:myoption:: asdf
+       :type: int
+       :value: 20
+       
+       The description of `asdf`.
+
 You can also link to the collections with :cfg:coll:`Vehicle` and :cfg:coll:`Car`,
 and to individual parameters like :cfg:option:`Vehicle.max_speed` or :cfg:option:`Car.max_speed`, pointing to the same
 location.
