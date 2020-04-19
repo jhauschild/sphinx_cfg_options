@@ -38,7 +38,7 @@ from sphinx.util import logging
 logger = logging.getLogger(__name__)
 
 # ConfigEntry is used in CfgDomain.data['config']
-ConfigEntry = namedtuple('ConfigEntry', "fullname, dispname, typ, docname, anchor, includes")
+ConfigEntry = namedtuple('ConfigEntry', "fullname, dispname, docname, anchor, includes")
 
 # OptionEntry is used in CfgDomain.data['config2options']
 OptionEntry = namedtuple('OptionEntry', "fullname, dispname, config, docname, anchor, context")
@@ -54,10 +54,9 @@ class cfgconfig(nodes.General, nodes.Element):
     """A node to be replaced by a list of options for a given `config`.
 
     The replacement happens in :meth:`ConfigNodeProcessor.process`."""
-    def __init__(self, config, can_collapse=True):
+    def __init__(self, config):
         super().__init__('')
         self.config = config
-        self.can_collapse = can_collapse
 
 
 class ConfigField(GroupedField):
@@ -74,7 +73,7 @@ class ConfigField(GroupedField):
             for incl in entries:
                 if incl not in config_includes:
                     config_includes.append(incl)
-        bodynode = cfgconfig(config, self.can_collapse)
+        bodynode = cfgconfig(config)
         fieldbody = nodes.field_body('', bodynode)
         return nodes.field('', fieldname, fieldbody)
 
@@ -145,14 +144,16 @@ class IndexedTypedField(PyTypedField):
         config_entries.append(option_entry)
 
 
-class CfgDefinition(ObjectDescription):
+class CfgConfig(ObjectDescription):
 
+    objtype = "config"
     required_arguments = 1
 
     option_spec = {
         'noindex': directives.flag,
         'nolist': directives.flag,  # TODO use this
         'context': directives.unchanged,
+        'include': directives.unchanged,
     }
 
     doc_field_types = [
@@ -161,12 +162,10 @@ class CfgDefinition(ObjectDescription):
                       rolename='',  # HACK
                       typerolename='py-class', typenames=('paramtype', 'type'),
                       can_collapse=True),
-        ConfigField('config', label='Options',
-                      names=('incl', 'include'),
-                      can_collapse=True)
     ]
 
     def handle_signature(self, sig, signode):
+        fullname, dispname = sig, sig
         # TODO: use below; might want to use PyXRefMixin for that?
         # modname = self.options.get('module', self.env.ref_context.get('py:module'))
         # clsname = self.options.get('cls', self.env.ref_context.get('py:class'))
@@ -178,34 +177,39 @@ class CfgDefinition(ObjectDescription):
                                             refdomain='cfg', reftype='config', reftarget=sig)
         signode += addnodes.desc_name(sig, '', signame)
 
-        name = sig  # TODO make name a tuple `(fullname, dispname)` as for PyObject?
-        return name
+        return fullname # TODO tuple
 
     def add_target_and_index(self, name, sig, signode):
-        node_id = make_id(self.env, self.state.document, 'cfg-config', name)
+        fullname, dispname = name, name #  TODO
+        node_id = make_id(self.env, self.state.document, 'cfg-config', fullname)
         signode['ids'].append(node_id)
         self.state.document.note_explicit_target(signode)
-        if 'noindex' not in self.options:
-            obj_entry = ObjectsEntry(name, sig, 'config', self.env.docname, node_id, 0)
-            self.env.domaindata['cfg']['def'].append(obj_entry)
-            config_entry = ConfigEntry(fullname=name,
-                                   dispname=name,
-                                   typ="config",
-                                   docname=obj_entry.docname,
-                                   anchor=obj_entry.anchor,
-                                   includes=[name],
-                                   )
-            other = self.env.domaindata['cfg']['config'].get(name, None)
-            if other:
-                logger.warning('duplicate object description of config %s, '
-                               'other instance in %s, use :noindex: for one of them',
-                               name, other.docname, location=signode)
-            # TODO: warn about duplicates
-            self.env.domaindata['cfg']['config'][name] = config_entry
 
-            # TODO: rewrite this
-            obj_entry = ObjectsEntry(name, sig, 'def', self.env.docname, node_id, 2)
-            self.env.domaindata['cfg']['def'].append(obj_entry)
+        obj_entry = ObjectsEntry(fullname, dispname, 'config', self.env.docname, node_id, 0)
+        self.env.domaindata['cfg']['def'].append(obj_entry)
+        includes = [fullname]  # a config always includes itself
+        for incl in self.options.get('include', "").split(','):
+            incl = incl.strip()
+            if incl and incl not in includes:
+                # TODO: get fullname from `incl`?
+                includes.append(incl)
+        config_entry = ConfigEntry(fullname=fullname,
+                                dispname=dispname,
+                                docname=obj_entry.docname,
+                                anchor=obj_entry.anchor,
+                                includes=includes,
+                                )
+        other = self.env.domaindata['cfg']['config'].get(name, None)
+        if other:
+            logger.warning('duplicate object description of config %s, '
+                            'other instance in %s, use :noindex: for one of them',
+                            name, other.docname, location=signode)
+        # TODO: warn about duplicates
+        self.env.domaindata['cfg']['config'][name] = config_entry
+
+        # TODO: rewrite this
+        obj_entry = ObjectsEntry(name, sig, 'def', self.env.docname, node_id, 2)
+        self.env.domaindata['cfg']['def'].append(obj_entry)
 
     def before_content(self):
         # save context
@@ -216,13 +220,17 @@ class CfgDefinition(ObjectDescription):
             self.env.ref_context['cfg:context'] = context = self.options['context']
 
         # HACK: insert `:include <name>:` line before content
-        self.content.insert(0, ":include " + name + ":", (self.state.document, ), offset=0)
+        # self.content.insert(0, ":include " + name + ":", (self.state.document, ), offset=0)
         super().before_content()
 
     # def after_content(self):
     #     if 'cfg:config' in self.env.ref_context:
     #         del self.env.ref_context['cfg:config']
     #     super().after_content()
+
+    def transform_content(self, contentnode):
+        config = self.names[-1] # TODO
+        contentnode.insert(0, cfgconfig(config))
 
     def run(self):
         context_name = self.env.temp_data.get('object', None)
@@ -234,6 +242,8 @@ class CfgDefinition(ObjectDescription):
 
 
 class CfgOption(ObjectDescription):
+
+    objtype = "option"
     option_spec = {
         'noindex': directives.flag,
         'context': directives.unchanged,
@@ -323,7 +333,7 @@ class ConfigNodeProcessor:
             options = self.domain.configs.get(config, [])
 
             new_content = [self.create_option_reference(o, config) for o in options]
-            if len(new_content) > 1 or not node.can_collapse:
+            if len(new_content) > 1:
                 listnode = nodes.bullet_list()
                 for entry in new_content:
                     listnode += nodes.list_item('', entry)
@@ -426,7 +436,7 @@ class CfgDomain(Domain):
     }
 
     directives = {
-        'config': CfgDefinition,
+        'config': CfgConfig,
         'currentconfig': CfgCurrentConfig,
         'myoption': CfgOption,
     }

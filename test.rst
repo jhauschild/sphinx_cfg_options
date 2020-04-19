@@ -39,11 +39,10 @@ directive to document another parameter for all vehicles.
 Now we want to setup a factory for cars.
 The car factory can use the vehicle factory, so the `config` of the car factory
 should include the `config` of the vehicle factory.
-This is indicated by a ``:include Vehicle:`` in the body of the config:
+This is indicated by the option ``:include: Vehicle`` in the body of the config:
 
 .. cfg:config:: Car
-
-   :include Vehicle:
+   :include: Vehicle
 
    .. cfg:myoption:: asdf
        :type: int
@@ -60,8 +59,8 @@ Also, note that the include is recursive, as shown in the following example.
 In case of duplicated parameter keys, all definitions are listed.
 
 .. cfg:config:: ElectricCar
+   :include: Vehicle, Car
 
-   :include Car:
    :param int fuel: Additional choice ``'battery'`` on top of what :cfg:option:`Vehicle.fuel` defines.
    :param bool hybrid: Wheter the car has both an internal combustion engine and an electric motor, or not.
 
