@@ -2,16 +2,8 @@
 # TODO: use python domain?
 
 
-# TODO: allow includes in definitions as well;
-# use `ConfigEntry` with additional `typ` in domain.data['def'] for *all* definitions
-# TODO: don't use fields, instead define a separate `CfgOption` directive
-
 # TODO: def id could be defined through context!
 # TODO: use numpydoc-style definitions of parameters
-
-# TODO: should we switch to defining entries as separate directives,
-# instead of hacking the fields to contain anchors?
-# That's how it should work, really...
 
 
 from collections import namedtuple
@@ -38,7 +30,7 @@ from sphinx.util import logging
 logger = logging.getLogger(__name__)
 
 # ConfigEntry is used in CfgDomain.data['config']
-ConfigEntry = namedtuple('ConfigEntry', "fullname, dispname, docname, anchor, includes")
+ConfigEntry = namedtuple('ConfigEntry', "fullname, dispname, docname, anchor, master, includes")
 
 # OptionEntry is used in CfgDomain.data['config2options']
 OptionEntry = namedtuple('OptionEntry', "fullname, dispname, config, docname, anchor, context")
@@ -151,7 +143,8 @@ class CfgConfig(ObjectDescription):
 
     option_spec = {
         'noindex': directives.flag,
-        'nolist': directives.flag,  # TODO use this
+        'nolist': directives.flag,
+        'master': directives.flag,
         'context': directives.unchanged,
         'include': directives.unchanged,
     }
@@ -185,31 +178,21 @@ class CfgConfig(ObjectDescription):
         signode['ids'].append(node_id)
         self.state.document.note_explicit_target(signode)
 
-        obj_entry = ObjectsEntry(fullname, dispname, 'config', self.env.docname, node_id, 0)
-        self.env.domaindata['cfg']['def'].append(obj_entry)
         includes = [fullname]  # a config always includes itself
         for incl in self.options.get('include', "").split(','):
             incl = incl.strip()
             if incl and incl not in includes:
                 # TODO: get fullname from `incl`?
                 includes.append(incl)
+        master = 'master' in self.options
         config_entry = ConfigEntry(fullname=fullname,
-                                dispname=dispname,
-                                docname=obj_entry.docname,
-                                anchor=obj_entry.anchor,
-                                includes=includes,
-                                )
-        other = self.env.domaindata['cfg']['config'].get(name, None)
-        if other:
-            logger.warning('duplicate object description of config %s, '
-                            'other instance in %s, use :noindex: for one of them',
-                            name, other.docname, location=signode)
-        # TODO: warn about duplicates
-        self.env.domaindata['cfg']['config'][name] = config_entry
-
-        # TODO: rewrite this
-        obj_entry = ObjectsEntry(name, sig, 'def', self.env.docname, node_id, 2)
-        self.env.domaindata['cfg']['def'].append(obj_entry)
+                                   dispname=dispname,
+                                   docname=self.env.docname,
+                                   anchor=node_id,
+                                   master=master,
+                                   includes=includes,
+                                   )
+        self.env.domaindata['cfg']['config'].append(config_entry)
 
     def before_content(self):
         # save context
@@ -219,8 +202,6 @@ class CfgConfig(ObjectDescription):
         if 'context' in self.options:
             self.env.ref_context['cfg:context'] = context = self.options['context']
 
-        # HACK: insert `:include <name>:` line before content
-        # self.content.insert(0, ":include " + name + ":", (self.state.document, ), offset=0)
         super().before_content()
 
     # def after_content(self):
@@ -229,8 +210,10 @@ class CfgConfig(ObjectDescription):
     #     super().after_content()
 
     def transform_content(self, contentnode):
-        config = self.names[-1] # TODO
-        contentnode.insert(0, cfgconfig(config))
+        super().transform_content(contentnode)
+        if 'nolist' not in self.options:
+            config = self.names[-1] # TODO
+            contentnode.insert(0, cfgconfig(config))
 
     def run(self):
         context_name = self.env.temp_data.get('object', None)
@@ -298,8 +281,9 @@ class CfgOption(ObjectDescription):
 
 class CfgCurrentConfig(SphinxDirective):
     """
+
     This directive is just to tell Sphinx that we're documenting
-    stuff in module foo, but links to module foo won't lead here.
+    options from the given config, but links to config won't lead here.
     """
 
     has_content = False
@@ -329,8 +313,8 @@ class ConfigNodeProcessor:
 
     def process(self, doctree):
         for node in doctree.traverse(cfgconfig):
-            config = node.config # TODO: include more configs
-            options = self.domain.configs.get(config, [])
+            config = node.config
+            options = self.domain.config_options[config]
 
             new_content = [self.create_option_reference(o, config) for o in options]
             if len(new_content) > 1:
@@ -426,13 +410,11 @@ class CfgDomain(Domain):
     obj_types = {
         'config':  ObjType('config', 'config'),
         'option':  ObjType('option', 'option'),
-        'def':  ObjType('definiton', 'def'),
     }
 
     roles = {
         'config': XRefRole(),
         'option': XRefRole(),
-        'def': XRefRole(),
     }
 
     directives = {
@@ -447,17 +429,13 @@ class CfgDomain(Domain):
     }
 
     initial_data = {
-        'config': {}, # config_name -> ConfigEntry
-        'def': [],  # ObjectsEntry
+        'config': [],  # ConfigEntry
         'config2options': {}, # config_name -> List[OptionEntry]
     }
 
     def clear_doc(self, docname):
-        config_data = self.data['config']
-        for name, config_entry in list(config_data.items()):
-            if config_entry.docname == docname:
-                del config_data[name]
-        self.data['def'] = [entry for entry in self.data['def'] if entry.docname != docname]
+        self.data['config'] = [entry for entry in self.data['config']
+                               if entry.docname != docname]
         for config_name, entries_list in self.data['config2options'].items():
             filered_entries = [entry for entry in entries_list if entry.docname != docname]
             self.data['config2options'][config_name] = filered_entries
@@ -470,13 +448,13 @@ class CfgDomain(Domain):
     #                              node.arguments[0])
 
     def get_objects(self):
-        for config_entry in self.data['config'].values():
+        for config_entry in self.data['config']:
             yield ObjectsEntry(config_entry.fullname,
                                config_entry.dispname,
                                'config',
                                config_entry.docname,
                                config_entry.anchor,
-                               prio=1)
+                               prio=0 if config_entry.master else 1)
         for param_list in self.data['config2options'].values():
             for option_entry in param_list:
                 yield ObjectsEntry(option_entry.fullname,
@@ -485,28 +463,25 @@ class CfgDomain(Domain):
                                    option_entry.docname,
                                    option_entry.anchor,
                                    prio=1)
-        for obj_entry in self.data['def']:
-            yield obj_entry
-
 
     def resolve_xref(self, env, fromdocname, builder, typ,
                      target, node, contnode):
         if not target:
             return None
         if typ == "config":
-            config = self.data['config'].get(target, None)
+            config = self.master_configs.get(target, None)
             if config is None:
                 return None
             return make_refnode(builder, fromdocname, config.docname, config.anchor, contnode,
                                 config.dispname)
         elif typ == "option":
-            config2options = self.data['config2options']
+            config_options = self.config_options
             split = target.split('.')
             if len(split) < 2:
                 return None
             for i in range(1, len(split)):
                 config, entry_name = '.'.join(split[:i]), '.'.join(split[i:])
-                for option_entry in self.configs.get(config, []):
+                for option_entry in config_options.get(config, []):
                     if option_entry.dispname == entry_name:  # match!
                         return make_refnode(builder,
                                             fromdocname,
@@ -519,62 +494,89 @@ class CfgDomain(Domain):
 
 
     @property
-    def configs(self):
-        """dict config_name -> List[OptionEntry], recursively with `includes`."""
-        configs = getattr(self, '_configs', None)
-        if configs is None:
-            self._configs = configs = self._get_configs_with_includes()
-        return configs
+    def master_configs(self):
+        """dict config_name -> ConfigEntry, with recursive `includes`."""
+        if not hasattr(self, '_master_configs'):
+            self._build_master_configs()
+        return self._master_configs
 
     @property
-    def includes(self):
-        """dict config_name -> List[config_name], recursively."""
-        includes = getattr(self, '_includes', None)
-        if includes is None:
-            self._includes = includes = {}
-            for config in self.data['config'].keys():
-                if config not in includes:  # _get_recursive_includes might have inserted it already
-                    includes[config] = self._get_recursive_includes(config)
-        return includes
+    def config_options(self):
+        """dict config_name -> List[OptionEntry], taking into account recursive `includes`."""
+        if not hasattr(self, '_config_options'):
+            self._build_config_options()
+        return self._config_options
 
-    def _get_configs_with_includes(self):
-        # build recursive configs from "flat" configs in self.data
-        res = {}
-        config2options = self.data['config2options']
-        config_names = set(self.data['config'].keys()).union(set(config2options.keys()))
+    def _build_master_configs(self):
+        """build recursive configs from "flat" configs in self.data"""
+        self._master_configs = master_configs = {}
+        data_config = self.data['config']
+        # collect master configs
+        for config_entry in data_config:
+            if config_entry.master:
+                other = master_configs.get(config_entry.fullname, None)
+                if other:
+                    logger.warning("two 'cfg:config' objects %s with ':master:' "
+                                   "in documents %s and %s",
+                                   config_entry.fullname,
+                                   config_entry.docname,
+                                   other.docname)
+                master_configs[config_entry.fullname] = config_entry
+            # if no master is given: master = first defined entry; set in next loop
+        # collect the includes from other entries in `data_config`
+        for config_entry in data_config:
+            master = master_configs.setdefault(config_entry.fullname, config_entry)
+            for incl in config_entry.includes:
+                if incl not in master.includes:
+                    master.includes.append(incl)
+
+        # collect configs implicitly defined by options only
+
+        # check validity of `include` names
+
+        # make includes recursive
+        handled_recursive = set([])
+        for config in master_configs.keys():
+            self._set_recursive_include(config, handled_recursive)
+        return master_configs
+
+    def _build_config_options(self):
+        self._config_options = config_options = {}
+        data_config2options = self.data['config2options']
+        config_names = set(self.master_configs.keys()).union(set(data_config2options.keys()))
         for config in config_names:
-            includes = self.includes.get(config, [config])
-            prio = dict((c_incl, i) for i, c_incl in enumerate(includes))
+            includes = [config]
+            master_config = self.master_configs.get(config, None)
+            if master_config:
+                includes = master_config.includes
+            prio = dict((incl, i) for i, incl in enumerate(includes))
+
             options = []
             for config_incl in includes:
-                options.extend(config2options.get(config_incl, []))
-            res[config] = sorted(options, key=lambda e: (e.dispname.lower(), prio[e.config]))
-        return res
+                options.extend(data_config2options.get(config_incl, []))
 
-    def _get_recursive_includes(self, config):
-        recursive = True # TODO: option to disable recursive includes
-        config_entry = self.data['config'].get(config, None)
-        if config_entry is None:
-            logger.warning("asked to include unknown config %s", config)
-            return []
 
-        # TODO: rewrite this to make recursive use of the method itself.
-        # order should be given in the same way as methods are resolved for classes!
-        config2incl = {config: entry.includes for config, entry in self.data['config'].items()}
-        includes = config2incl.get(config, [config])[:]
-        assert includes[0] == config
-        if recursive:
-            check_recursive = includes[1:]
-            checked = set([config])
-            while len(check_recursive) > 0:
-                check = check_recursive.pop(0)
-                checked.add(check)
-                for incl in config2incl.get(check, [])[1:]:
-                    if incl in includes:
-                        continue
-                    includes.append(incl)
-                    check_recursive.append(incl)
-        return includes
+            def sort_priority(option_entry):
+                return (option_entry.dispname.lower(), prio[option_entry.config])
+
+            config_options[config] = sorted(options, key=sort_priority)
+
+
+    def _set_recursive_include(self, config, handled_recursive):
+        includes = self.master_configs[config].includes
+        if config in handled_recursive:
+            return includes
+        handled_recursive.add(config) # before doing it: safeguard for cyclic includes
+        new_includes = [config]
+        for sub in includes:
+            if sub not in new_includes:
+                new_includes.append(sub)
+            subincludes = self._set_recursive_include(sub, handled_recursive)
+            for subincl in subincludes:
+                if subincl not in new_includes:
+                    new_includes.append(subincl)
+        includes[:] = new_includes
+        return new_includes
 
 
 def setup(app):
