@@ -16,11 +16,15 @@ class A:
 
     .. cfg:config :: DMRG
 
-        :param first: Describe the `first` parameter, context ``alowed``.
-        :type first: int
-        :param second: Describe the `second` parameter, c.f. :py:class:`mylib.B`.
-        :type second: float
+        .. cfg:option:: first
+            :type: int
 
+            Describe the `first` parameter, context ``alowed``.
+
+        .. cfg:option :: second
+            :type: float
+
+            Describe the `second` parameter, c.f. :py:class:`mylib.B`.
 
     Parameters
     ----------
@@ -58,10 +62,13 @@ class Asub(A):
 def complicated_function(a, b, c, params):
     """A complicated function.
 
-    .. cfg:config :: DMRG
+    .. cfg:config :: complicated_function.params
         :noindex:
 
-        :param int Na: Number of repetitions for `a`.
+        .. cfg:option:: Na
+           :type: int
+
+           Number of repetitions for `a`.
 
     Parameters
     ----------

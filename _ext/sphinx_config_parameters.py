@@ -170,7 +170,7 @@ class CfgConfig(ObjectDescription):
         # modname = self.options.get('module', self.env.ref_context.get('py:module'))
         # clsname = self.options.get('cls', self.env.ref_context.get('py:class'))
         # fullname = (modname + '.' if modname else '') + sig
-        signode += addnodes.desc_annotation('Config ', 'Config ')
+        signode += addnodes.desc_annotation('config ', 'config ')
         signame = nodes.Text(sig)
         if 'noindex' in self.options:
             signame = addnodes.pending_xref(sig, signame,
@@ -249,7 +249,7 @@ class CfgOption(ObjectDescription):
         'context': directives.unchanged,
         'config': directives.unchanged,
         'type': directives.unchanged,
-        'value': directives.unchanged,
+        'default': directives.unchanged,
     }
 
     def handle_signature(self, sig, signode):
@@ -271,9 +271,9 @@ class CfgOption(ObjectDescription):
         if typ:
             signode += addnodes.desc_annotation(typ, ': ' + typ)
 
-        value = self.options.get('value')
-        if value:
-            signode += addnodes.desc_annotation(value, ' = ' + value)
+        defaultvalue = self.options.get('default')
+        if defaultvalue:
+            signode += addnodes.desc_annotation(defaultvalue, ' = ' + defaultvalue)
 
         return fullname, config
 
@@ -281,7 +281,7 @@ class CfgOption(ObjectDescription):
     def add_target_and_index(self, name_config, sig, signode):
         fullname, config = name_config
         context = self.options.get('config', self.env.ref_context.get('cfg:config', None))
-        node_id = make_id(self.env, self.state.document, 'cfg-opt', fullname)
+        node_id = make_id(self.env, self.state.document, 'cfg-option', fullname)
         signode['ids'].append(node_id)
         self.state.document.note_explicit_target(signode)
         if 'noindex' not in self.options:
@@ -438,7 +438,7 @@ class CfgDomain(Domain):
     directives = {
         'config': CfgConfig,
         'currentconfig': CfgCurrentConfig,
-        'myoption': CfgOption,
+        'option': CfgOption,
     }
 
     indices = {

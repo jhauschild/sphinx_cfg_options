@@ -23,18 +23,21 @@ It can define the following config with a `.. cfg:config:: Vehicle` directive:
 
 .. cfg:config:: Vehicle
 
-   :param max_speed: Maximum speed of the vehicle.
-   :type max_speed: float
+   .. cfg:option:: max_speed
+      :type: float
+
+      Maximum speed of the vehicle.
 
 In the function that sets up the engine, we notice that we need another
 parameter: the type of the fuel. So we add a ``.. cfg:definition:: Vehicle``
 directive to document another parameter for all vehicles.
 
-.. cfg:config:: Vehicle
-   :noindex:
 
-   :param str fuel: Type of the used fuel, can be 'gasoline' or 'diesel'.
+.. cfg:option:: fuel
+    :type: string
+    :default: "gasoline"
 
+    Type of the used fuel, can be 'gasoline' or 'diesel'.
 
 Now we want to setup a factory for cars.
 The car factory can use the vehicle factory, so the `config` of the car factory
@@ -44,27 +47,29 @@ This is indicated by the option ``:include: Vehicle`` in the body of the config:
 .. cfg:config:: Car
    :include: Vehicle
 
-   .. cfg:myoption:: asdf
-       :type: int
-       :value: 20
-       
-       The description of `asdf`.
 
 You can also link to the configs with :cfg:config:`Vehicle` and :cfg:config:`Car`,
-and to individual parameters like :cfg:option:`Vehicle.max_speed` or :cfg:option:`Car.max_speed`, pointing to the same
-location.
+and to individual parameters like :cfg:option:`Vehicle.fuel` or :cfg:option:`Car.fuel`;
+they latter two point to the same definition in this case.
 
 Of course, a new config can also define it's own parameters in addition to using the `include`.
 Also, note that the include is recursive, as shown in the following example.
 In case of duplicated parameter keys, all definitions are listed.
 
 .. cfg:config:: ElectricCar
-   :include: Vehicle, Car
+   :include: Car
 
-   :param int fuel: Additional choice ``'battery'`` on top of what :cfg:option:`Vehicle.fuel` defines.
-   :param bool hybrid: Wheter the car has both an internal combustion engine and an electric motor, or not.
+   .. cfg:option:: fuel
+      
+      Additional choice ``"battery"`` on top of what :cfg:option:`Vehicle.fuel` defines.
 
-As you might have expected, the references :cfg:option:`Vehicle.max_speed` and :cfg:option:`ElectricCar.max_speed` now
+   .. cfg:option:: hybrid
+      :type: bool
+      :default: False
+      
+      Wheter the car has both an internal combustion engine and an electric motor, or not.
+
+As you might have expected, the references :cfg:option:`Vehicle.fuel` and :cfg:option:`ElectricCar.fuel` now
 point to the two different definitions.
 
 One last hint: you can include a config of the same name at multiple positions in the documentation.
