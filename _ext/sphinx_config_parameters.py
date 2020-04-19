@@ -149,13 +149,7 @@ class CfgConfig(ObjectDescription):
         'include': directives.unchanged,
     }
 
-    doc_field_types = [
-        IndexedTypedField('definition', label='Definitions',
-                      names=('param', 'param', 'parameter', 'arg', 'argument', 'keyword', 'kwarg', 'kwparam'),
-                      rolename='',  # HACK
-                      typerolename='py-class', typenames=('paramtype', 'type'),
-                      can_collapse=True),
-    ]
+    doc_field_types = []
 
     def handle_signature(self, sig, signode):
         fullname, dispname = sig, sig
@@ -173,7 +167,7 @@ class CfgConfig(ObjectDescription):
         return fullname # TODO tuple
 
     def add_target_and_index(self, name, sig, signode):
-        fullname, dispname = name, name #  TODO
+        fullname, dispname = name, name  #  TODO
         node_id = make_id(self.env, self.state.document, 'cfg-config', fullname)
         signode['ids'].append(node_id)
         self.state.document.note_explicit_target(signode)
@@ -182,7 +176,7 @@ class CfgConfig(ObjectDescription):
         for incl in self.options.get('include', "").split(','):
             incl = incl.strip()
             if incl and incl not in includes:
-                # TODO: get fullname from `incl`?
+                # TODO: get fullname of `incl` from context
                 includes.append(incl)
         master = 'master' in self.options
         config_entry = ConfigEntry(fullname=fullname,
@@ -220,8 +214,7 @@ class CfgConfig(ObjectDescription):
         if isinstance(context_name, tuple):
             context_name = context_name[0]
         self.env.ref_context['cfg:context'] = context_name
-        res = super().run()
-        return res
+        return super().run()
 
 
 class CfgOption(ObjectDescription):
@@ -263,7 +256,8 @@ class CfgOption(ObjectDescription):
 
     def add_target_and_index(self, name_config, sig, signode):
         fullname, config = name_config
-        context = self.options.get('config', self.env.ref_context.get('cfg:config', None))
+        context = self.options.get('context',
+                                   self.env.ref_context.get('cfg:context', None))
         node_id = make_id(self.env, self.state.document, 'cfg-option', fullname)
         signode['ids'].append(node_id)
         self.state.document.note_explicit_target(signode)
@@ -326,19 +320,16 @@ class ConfigNodeProcessor:
 
 
     def create_option_reference(self, option, config):
-
-        # TODO: include link to definition and name category if different
-
         par = nodes.paragraph()
         # OptionEntry = namedtuple('OptionEntry', "name, dispname, config, docname, anchor, context")
         innernode = addnodes.literal_strong(option.dispname, option.dispname)
         par += self.make_refnode(option.docname, option.anchor, innernode)
         if option.config != config:
-            par += nodes.Text(' (from ')
+            par += nodes.Text(" (from ")
             par += self._make_config_xref(option.config)
-            par += nodes.Text(')')
+            par += nodes.Text(")")
         if option.context is not None:
-            par += nodes.Text(" in ")
+            par += nodes.Text(" defined in ")
             par += addnodes.literal_emphasis(option.context, option.context)
         return par
 

@@ -48,8 +48,10 @@ class A:
         .. cfg:config :: DMRG
             :noindex:
 
-            :param first: Describe the `first` parameter, context ``alowed``.
-            :type first: int
+            .. cfg:option :: first
+                :type: int
+
+                Another description of the `first` parameter.
         """
         print(self.params.keys())
 
