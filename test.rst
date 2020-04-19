@@ -19,9 +19,9 @@ Example
 -------
 
 Consider a factory producing vehicles. 
-It can define the following config with a `.. cfg:collection:: Vehicle` directive:
+It can define the following config with a `.. cfg:config:: Vehicle` directive:
 
-.. cfg:collection:: Vehicle
+.. cfg:config:: Vehicle
 
    :param max_speed: Maximum speed of the vehicle.
    :type max_speed: float
@@ -30,7 +30,7 @@ In the function that sets up the engine, we notice that we need another
 parameter: the type of the fuel. So we add a ``.. cfg:definition:: Vehicle``
 directive to document another parameter for all vehicles.
 
-.. cfg:collection:: Vehicle
+.. cfg:config:: Vehicle
    :noindex:
 
    :param str fuel: Type of the used fuel, can be 'gasoline' or 'diesel'.
@@ -39,9 +39,9 @@ directive to document another parameter for all vehicles.
 Now we want to setup a factory for cars.
 The car factory can use the vehicle factory, so the `config` of the car factory
 should include the `config` of the vehicle factory.
-This is indicated by a ``:include Vehicle:`` in the body of the collection:
+This is indicated by a ``:include Vehicle:`` in the body of the config:
 
-.. cfg:collection:: Car
+.. cfg:config:: Car
 
    :include Vehicle:
 
@@ -51,15 +51,15 @@ This is indicated by a ``:include Vehicle:`` in the body of the collection:
        
        The description of `asdf`.
 
-You can also link to the collections with :cfg:coll:`Vehicle` and :cfg:coll:`Car`,
+You can also link to the configs with :cfg:config:`Vehicle` and :cfg:config:`Car`,
 and to individual parameters like :cfg:option:`Vehicle.max_speed` or :cfg:option:`Car.max_speed`, pointing to the same
 location.
 
-Of course, a new collection can also define it's own parameters in addition to using the `include`.
+Of course, a new config can also define it's own parameters in addition to using the `include`.
 Also, note that the include is recursive, as shown in the following example.
 In case of duplicated parameter keys, all definitions are listed.
 
-.. cfg:collection:: ElectricCar
+.. cfg:config:: ElectricCar
 
    :include Car:
    :param int fuel: Additional choice ``'battery'`` on top of what :cfg:option:`Vehicle.fuel` defines.
@@ -68,9 +68,9 @@ In case of duplicated parameter keys, all definitions are listed.
 As you might have expected, the references :cfg:option:`Vehicle.max_speed` and :cfg:option:`ElectricCar.max_speed` now
 point to the two different definitions.
 
-One last hint: you can include a collection of the same name at multiple positions in the documentation.
+One last hint: you can include a config of the same name at multiple positions in the documentation.
 However, all but one should have `:noindex:` set, and only the one not having `:noindex:` can define the includes.
 
-.. cfg:collection:: ElectricCar
+.. cfg:config:: ElectricCar
     :noindex:
 

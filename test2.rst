@@ -1,11 +1,9 @@
 More tests
 ==========
 
-Link to :cfg:coll:`TEBD`.
+Link to :cfg:config:`DMRGJ`.
 
-Link to :cfg:def:`DMRG`.
-
-Link to nonexistent :cfg:coll:`ABCD`.
+Link to nonexistent :cfg:config:`ABCD`.
 
 .. currentmodule :: mylib
 

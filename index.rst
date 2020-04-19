@@ -12,6 +12,6 @@ Welcome to sphinxparameter's documentation!
 Indices and tables
 ==================
 
-* :ref:`cfg-coll-index`
+* :ref:`cfg-config-index`
 * :ref:`cfg-option-index`
 * :ref:`search`
