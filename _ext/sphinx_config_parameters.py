@@ -1,8 +1,5 @@
 # TODO: further config values
-# TODO: use python domain?
 
-
-# TODO: def id could be defined through context!
 # TODO: use numpydoc-style definitions of parameters
 
 
@@ -63,26 +60,16 @@ class CfgConfig(ObjectDescription):
     }
 
     def handle_signature(self, sig, signode):
-        fullname, dispname = sig, sig
-        prefixes = []
-        for prefix in self.config.cfg_config_name_prefix:
-            prefix = self.env.ref_context.get(prefix, "")
-            if prefix:
-                prefixes.append(prefix)
-        if prefixes:
-            fullname = '.'.join(prefixes + [fullname])
-
+        fullname = sig
         signode += addnodes.desc_annotation('config ', 'config ')
-        signame = nodes.Text(dispname)
+        signame = nodes.Text(sig)
         if 'master' not in self.options:
             signame = addnodes.pending_xref(sig, signame,
                                             refdomain='cfg', reftype='config', reftarget=fullname)
         signode += addnodes.desc_name(sig, '', signame)
+        return fullname
 
-        return fullname, dispname
-
-    def add_target_and_index(self, full_dispname, sig, signode):
-        fullname, dispname = full_dispname
+    def add_target_and_index(self, fullname, sig, signode):
         node_id = make_id(self.env, self.state.document, 'cfg-config', fullname)
         signode['ids'].append(node_id)
         self.state.document.note_explicit_target(signode)
@@ -91,11 +78,10 @@ class CfgConfig(ObjectDescription):
         for incl in self.options.get('include', "").split(','):
             incl = incl.strip()
             if incl and incl not in includes:
-                # TODO: get fullname of `incl` from context
                 includes.append(incl)
         master = 'master' in self.options
         config_entry = ConfigEntry(fullname=fullname,
-                                   dispname=dispname,
+                                   dispname=sig,
                                    docname=self.env.docname,
                                    anchor=node_id,
                                    master=master,
@@ -107,20 +93,22 @@ class CfgConfig(ObjectDescription):
         # save context
         if self.names:
             self.env.ref_context['cfg:config'] = self.names[-1]
+            self.env.ref_context['cfg:in-config'] = True
         if 'context' in self.options:
             self.env.ref_context['cfg:context'] = context = self.options['context']
         super().before_content()
 
+    def transform_content(self, contentnode):
+        if 'nolist' not in self.options:
+            contentnode.insert(0, cfgconfig(self.names[-1]))
+        super().transform_content(contentnode)
+
     def after_content(self):
         if 'cfg:config' in self.env.ref_context:
             del self.env.ref_context['cfg:config']
+            del self.env.ref_context['cfg:in-config']
         super().after_content()
 
-    def transform_content(self, contentnode):
-        super().transform_content(contentnode)
-        if 'nolist' not in self.options:
-            config = self.names[-1][0] # TODO
-            contentnode.insert(0, cfgconfig(config))
 
     def run(self):
         context_name = self.env.temp_data.get('object', None)
@@ -142,19 +130,18 @@ class CfgOption(ObjectDescription):
     }
 
     def handle_signature(self, sig, signode):
-        name = sig  # TODO make name a tuple `(fullname, dispname)` as for PyObject?
-        # TODO: use below; might want to use PyXRefMixin for that?
-        config = self.options.get('config', None)
-        if config is None:
-            config = self.env.ref_context.get('cfg:config', (None, None))[0]
+        name = sig
+        config = self.options.get('config', self.env.ref_context.get('cfg:config', ""))
         if not config:
             logger.warning("config option with unknown config", location=signode)
             config = "UNKNOWN"
         fullname = config + '.' + name
+
         signode += addnodes.desc_annotation('option ', 'option ')
-        signode += addnodes.pending_xref(sig, addnodes.desc_addname(config, config),
-                                         refdomain='cfg', reftype='config', reftarget=config)
-        signode += addnodes.desc_addname('', '.')
+        if not self.env.ref_context.get('cfg:in-config', False):
+            signode += addnodes.pending_xref(sig, addnodes.desc_addname(config, config),
+                                            refdomain='cfg', reftype='config', reftarget=config)
+            signode += addnodes.desc_addname('', '.')
 
         signode += addnodes.desc_name(sig, '', nodes.Text(sig))
 
@@ -178,7 +165,7 @@ class CfgOption(ObjectDescription):
         self.state.document.note_explicit_target(signode)
         if 'noindex' not in self.options:
             option_entry = OptionEntry(fullname=fullname,
-                                       dispname=fullname[len(config) + 1:],
+                                       dispname=sig,
                                        config=config,
                                        docname=self.env.docname,
                                        anchor=node_id,
@@ -199,20 +186,14 @@ class CfgCurrentConfig(SphinxDirective):
     required_arguments = 1
     optional_arguments = 0
     final_argument_whitespace = False
-    option_spec = {
-        'prefix': directives.unchanged
-    }
+    option_spec = {}
 
     def run(self):
-        # TODO: python context?
         configname = self.arguments[0].strip()
         if configname == 'None':
             self.env.ref_context.pop('cfg:config', None)
         else:
-            prefix = self.options.get('prefix', "")
-            if prefix:
-                configname = prefix + "." + configname
-            self.env.ref_context['cfg:config'] = (configname, prefix)
+            self.env.ref_context['cfg:config'] = configname
         return []
 
 
@@ -493,7 +474,6 @@ class CfgDomain(Domain):
 
 def setup(app):
     app.add_config_value('cfg_recursive_includes', True, 'html')
-    app.add_config_value('cfg_config_name_prefix', ['py:module', 'py:class'], 'html')
 
     app.add_domain(CfgDomain)
 
