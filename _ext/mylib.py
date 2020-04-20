@@ -16,14 +16,9 @@ class A:
 
     .. cfg:config :: DMRG
 
-        .. cfg:option:: first
-            :type: int
-
+        first : int
             Describe the `first` parameter, context ``alowed``.
-
-        .. cfg:option :: second
-            :type: float
-
+        second : float
             Describe the `second` parameter, c.f. :py:class:`mylib.B`.
 
     Parameters
@@ -46,10 +41,7 @@ class A:
         """Some function using `self.params`.
 
         .. cfg:config :: DMRG
-
-            .. cfg:option :: first
-                :type: int
-
+            first: int
                 Another description of the `first` parameter.
         """
         print(self.params.keys())
@@ -66,9 +58,7 @@ def complicated_function(a, b, c, params):
     .. cfg:config :: complicated_function.params
         :noindex:
 
-        .. cfg:option:: Na
-           :type: int
-
+        Na : int
            Number of repetitions for `a`.
 
     Parameters

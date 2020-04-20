@@ -23,15 +23,13 @@ It can define the following config with a `.. cfg:config:: Vehicle` directive:
 
 .. cfg:config:: Vehicle
 
-   .. cfg:option :: max_speed
-      :type: float
-
+   max_speed : float
       Maximum speed of the vehicle.
 
 In the function that sets up the engine, we notice that we need another
-parameter: the type of the fuel. So we add a ``.. cfg:definition:: Vehicle``
-directive to document another parameter for all vehicles.
-
+parameter: the type of the fuel. 
+If we want to define only a single option value, we can use the
+``.. cfg:option::`` directive:
 
 .. cfg:option:: fuel
     :config: Vehicle
@@ -39,6 +37,7 @@ directive to document another parameter for all vehicles.
     :default: "gasoline"
 
     Type of the used fuel, ``"gasoline"`` or ``"diesel"``.
+
 
 Now we want to setup a factory for cars.
 The car factory can use the vehicle factory, so the `config` of the car factory
@@ -60,14 +59,9 @@ In case of duplicated parameter keys, all definitions are listed.
 .. cfg:config:: ElectricCar
    :include: Car
 
-   .. cfg:option:: fuel
-      
+   fuel:
       Additional choice ``"battery"`` on top of what :cfg:option:`Vehicle.fuel` defines.
-
-   .. cfg:option:: hybrid
-      :type: bool
-      :default: False
-      
+   hybrid:bool=False
       Whether the car has both an internal combustion engine and an electric motor, or not.
 
 As you might have expected, the references :cfg:option:`Vehicle.fuel` and :cfg:option:`ElectricCar.fuel` now

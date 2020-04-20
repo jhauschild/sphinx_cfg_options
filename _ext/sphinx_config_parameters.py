@@ -1,14 +1,18 @@
 # TODO: further config values
 
-# TODO: use numpydoc-style definitions of parameters
+# TODO: make parsing numpy-doc-style the default
+# TODO: parse type of CfgOption
+# TODO: add event before parsing the content
+# TODO: can we avoid requiring a newline after the directive header?
 
-
+import re
 from collections import namedtuple
 
 import docutils
 from docutils import nodes
 from docutils.parsers import rst
 from docutils.parsers.rst import directives
+from docutils.statemachine import StringList
 import sphinx
 from sphinx.domains import Domain, Index, ObjType
 from sphinx.domains.std import StandardDomain
@@ -54,6 +58,7 @@ class CfgConfig(ObjectDescription):
     option_spec = {
         'noindex': directives.flag,
         'nolist': directives.flag,
+        'noparse': directives.flag,
         'master': directives.flag,
         'context': directives.unchanged,
         'include': directives.unchanged,
@@ -90,6 +95,8 @@ class CfgConfig(ObjectDescription):
         self.env.domaindata['cfg']['config'].append(config_entry)
 
     def before_content(self):
+        if self.config.cfg_parse_numpydoc_style_options and 'noparse' not in self.options:
+            self.parse_numpydoc_style_options()
         # save context
         if self.names:
             self.env.ref_context['cfg:config'] = self.names[-1]
@@ -116,6 +123,50 @@ class CfgConfig(ObjectDescription):
             context_name = context_name[0]
         self.env.ref_context['cfg:context'] = context_name
         return super().run()
+
+    def parse_numpydoc_style_options(self):
+        option_header_re = re.compile("([\w.]*)\s*(?::\s*([^=]*))?(?:=\s*(\S*)\s*)?$")
+
+        # TODO emit event
+
+        self.content.disconnect()  # avoid screwing up the parsing of the parent
+        N = len(self.content)
+        # i = index in the lines
+        indents = [_get_indent(line) for line in self.content]
+        field_begin = [i for i, indent in enumerate(indents) if indent == 0]
+        for field_beg, field_end in reversed(list(zip(field_begin, field_begin[1:] + [N]))):
+            field_beg_line = self.content[field_beg]
+            next_indent = "    "  # default indent, if no non-empty lines follow
+            for j in range(field_beg + 1, field_end):
+                if indents[j] > 0:
+                    next_indent = self.content[j][:indents[j]]
+                    break
+            m = option_header_re.match(field_beg_line)
+            if m is None:
+                source, line = self.content.info(field_beg)
+                location = "{0!s}:{1!s}".format(source, line)
+                logger.warning("can't parse config option header-line " + repr(field_beg_line),
+                               location=location)
+                continue
+            name, typ, default = m.groups()
+            replace = [".. cfg:option :: " + name]
+            if typ is not None and typ.strip():
+                replace.append(next_indent + ":type: " + typ)
+            if default:
+                replace.append(next_indent + ":default: " + default)
+            replace.append(next_indent)
+            field_beg_view = self.content[field_beg:field_beg+1]
+            field_beg_view *= len(replace)
+            field_beg_view.data[:] = replace
+            self.content.insert(field_end, StringList([next_indent], items=[self.content.info(field_end-1)]))
+            self.content[field_beg:field_beg+1] = field_beg_view
+
+
+def _get_indent(line):
+    for i, c in enumerate(line):
+        if not c.isspace():
+            return i
+    return -1
 
 
 class CfgOption(ObjectDescription):
@@ -291,8 +342,8 @@ class CfgConfigIndex(Index):
                 anchor,
                 docname, '', typ
             ))
-        re = [(k, v) for k, v in sorted(content.items())]
-        return (re, True)
+        res = [(k, v) for k, v in sorted(content.items())]
+        return (res, True)
 
 
 class CfgDomain(Domain):
@@ -474,6 +525,7 @@ class CfgDomain(Domain):
 
 def setup(app):
     app.add_config_value('cfg_recursive_includes', True, 'html')
+    app.add_config_value('cfg_parse_numpydoc_style_options', True, 'html')
 
     app.add_domain(CfgDomain)
 
