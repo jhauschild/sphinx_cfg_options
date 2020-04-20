@@ -14,10 +14,8 @@ from docutils.parsers import rst
 from docutils.parsers.rst import directives
 import sphinx
 from sphinx.domains import Domain, Index, ObjType
-from sphinx.domains.python import PyTypedField
 from sphinx.domains.std import StandardDomain
 from sphinx.errors import NoUri
-from sphinx.util.docfields import Field, TypedField, GroupedField
 from sphinx.roles import XRefRole
 from sphinx.directives import ObjectDescription
 from sphinx.util.nodes import make_id, make_refnode
@@ -51,91 +49,6 @@ class cfgconfig(nodes.General, nodes.Element):
         self.config = config
 
 
-class ConfigField(GroupedField):
-    """Field collecting all the `fieldarg` given in a `cfgconfig` node."""
-    def make_field(self, types, domain, items, env=None):
-        assert env is not None   # don't expect this to happen
-
-        fieldname = nodes.field_name('', self.label)
-        entries = [fieldarg for (fieldarg, content) in items]
-        config = entries[0]  # ensured by CfgConfig.before_content().
-        config_entry = env.domaindata['cfg']['config'].get(config, None)
-        if config_entry is not None:
-            config_includes = config_entry.includes
-            for incl in entries:
-                if incl not in config_includes:
-                    config_includes.append(incl)
-        bodynode = cfgconfig(config)
-        fieldbody = nodes.field_body('', bodynode)
-        return nodes.field('', fieldname, fieldbody)
-
-
-class IndexedTypedField(PyTypedField):
-    def make_xref(self, rolename, domain, target,
-                  innernode=addnodes.literal_emphasis,
-                  contnode=None, env=None):
-        if rolename == 'py-class':
-            return super().make_xref("class", "py", target, innernode, contnode, env)
-        return Field.make_xref(self, rolename, domain, target, innernode, contnode, env)
-
-    def make_field(self, types, domain, items, env=None):
-        """Like TypedField.make_field(), but also call `self.add_entry_target_and_index`."""
-        assert env is not None   # don't expect this to happen
-
-        entries = []
-
-        for fieldarg, content in items:
-            par = nodes.paragraph()
-            par.extend(self.make_xrefs(self.rolename, domain, fieldarg,
-                                       addnodes.literal_strong, env=env))
-            if fieldarg in types:
-                par += nodes.Text(' (')
-                # NOTE: using .pop() here to prevent a single type node to be
-                # inserted twice into the doctree, which leads to
-                # inconsistencies later when references are resolved
-                fieldtype = types.pop(fieldarg)
-                if len(fieldtype) == 1 and isinstance(fieldtype[0], nodes.Text):
-                    typename = fieldtype[0].astext()
-                    par.extend(self.make_xrefs(self.typerolename, domain, typename,
-                                               addnodes.literal_emphasis, env=env))
-                else:
-                    par += fieldtype
-                par += nodes.Text(')')
-            par += nodes.Text(' -- ')
-            par += content
-            self.add_entry_target_and_index(fieldarg, par, env)  # <--- this is new!
-            entries.append(par)
-
-        fieldname = nodes.field_name('', self.label)
-        if len(items) == 1 and self.can_collapse:
-            bodynode = entries[0]
-        else:
-            bodynode = self.list_type()
-            for entry in entries:
-                bodynode += nodes.list_item('', entry)
-        fieldbody = nodes.field_body('', bodynode)
-        return nodes.field('', fieldname, fieldbody)
-
-    def add_entry_target_and_index(self, fieldname, content, env, noindex=False):
-        config = env.ref_context['cfg:config']
-        context = env.ref_context.get('cfg:context', None)
-        assert config is not None
-        name = "%s.%s" % (config, fieldname)
-        anchor = "cfg-option-%d" % env.new_serialno('cfg-option')
-        content['ids'].append(anchor)
-        content['ids'].append("cfg-%s" % name)
-
-        option_entry = OptionEntry(fullname=name,
-                                  dispname=fieldname,
-                                  config=config,
-                                  docname=env.docname,
-                                  anchor=anchor,
-                                  context=context,
-                                  )
-        config_entries = env.domaindata['cfg']['config2options'].setdefault(config, [])
-        config_entries.append(option_entry)
-
-
 class CfgConfig(ObjectDescription):
 
     objtype = "config"
@@ -148,8 +61,6 @@ class CfgConfig(ObjectDescription):
         'context': directives.unchanged,
         'include': directives.unchanged,
     }
-
-    doc_field_types = []
 
     def handle_signature(self, sig, signode):
         fullname, dispname = sig, sig
@@ -577,8 +488,8 @@ def setup(app):
     app.connect('doctree-resolved', ConfigNodeProcessor)
 
     StandardDomain.initial_data['labels']['cfg-config-index'] =\
-        ('cfg-config', '', 'Config Definiton Index')
+        ('cfg-config', '', 'Config Index')
     StandardDomain.initial_data['labels']['cfg-option-index'] =\
-        ('cfg-option', '', 'Config Options Index')
+        ('cfg-option', '', 'Config-Options Index')
 
     return {'version': '0.1'}
