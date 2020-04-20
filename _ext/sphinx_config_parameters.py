@@ -1,4 +1,4 @@
-# TODO: config values, e.g. 'recursive'?
+# TODO: further config values
 # TODO: use python domain?
 
 
@@ -64,21 +64,25 @@ class CfgConfig(ObjectDescription):
 
     def handle_signature(self, sig, signode):
         fullname, dispname = sig, sig
-        # TODO: use below; might want to use PyXRefMixin for that?
-        # modname = self.options.get('module', self.env.ref_context.get('py:module'))
-        # clsname = self.options.get('cls', self.env.ref_context.get('py:class'))
-        # fullname = (modname + '.' if modname else '') + sig
+        prefixes = []
+        for prefix in self.config.cfg_config_name_prefix:
+            prefix = self.env.ref_context.get(prefix, "")
+            if prefix:
+                prefixes.append(prefix)
+        if prefixes:
+            fullname = '.'.join(prefixes + [fullname])
+
         signode += addnodes.desc_annotation('config ', 'config ')
-        signame = nodes.Text(sig)
-        if 'noindex' in self.options:
+        signame = nodes.Text(dispname)
+        if 'master' not in self.options:
             signame = addnodes.pending_xref(sig, signame,
-                                            refdomain='cfg', reftype='config', reftarget=sig)
+                                            refdomain='cfg', reftype='config', reftarget=fullname)
         signode += addnodes.desc_name(sig, '', signame)
 
-        return fullname # TODO tuple
+        return fullname, dispname
 
-    def add_target_and_index(self, name, sig, signode):
-        fullname, dispname = name, name  #  TODO
+    def add_target_and_index(self, full_dispname, sig, signode):
+        fullname, dispname = full_dispname
         node_id = make_id(self.env, self.state.document, 'cfg-config', fullname)
         signode['ids'].append(node_id)
         self.state.document.note_explicit_target(signode)
@@ -102,22 +106,20 @@ class CfgConfig(ObjectDescription):
     def before_content(self):
         # save context
         if self.names:
-            name = self.names[-1]  # what was returned by `handle_sig`
-            self.env.ref_context['cfg:config'] = name
+            self.env.ref_context['cfg:config'] = self.names[-1]
         if 'context' in self.options:
             self.env.ref_context['cfg:context'] = context = self.options['context']
-
         super().before_content()
 
-    # def after_content(self):
-    #     if 'cfg:config' in self.env.ref_context:
-    #         del self.env.ref_context['cfg:config']
-    #     super().after_content()
+    def after_content(self):
+        if 'cfg:config' in self.env.ref_context:
+            del self.env.ref_context['cfg:config']
+        super().after_content()
 
     def transform_content(self, contentnode):
         super().transform_content(contentnode)
         if 'nolist' not in self.options:
-            config = self.names[-1] # TODO
+            config = self.names[-1][0] # TODO
             contentnode.insert(0, cfgconfig(config))
 
     def run(self):
@@ -142,9 +144,11 @@ class CfgOption(ObjectDescription):
     def handle_signature(self, sig, signode):
         name = sig  # TODO make name a tuple `(fullname, dispname)` as for PyObject?
         # TODO: use below; might want to use PyXRefMixin for that?
-        config = self.options.get('config', self.env.ref_context.get('cfg:config', None))
+        config = self.options.get('config', None)
         if config is None:
-            logger.warning("config option with unknown config")
+            config = self.env.ref_context.get('cfg:config', (None, None))[0]
+        if not config:
+            logger.warning("config option with unknown config", location=signode)
             config = "UNKNOWN"
         fullname = config + '.' + name
         signode += addnodes.desc_annotation('option ', 'option ')
@@ -195,7 +199,9 @@ class CfgCurrentConfig(SphinxDirective):
     required_arguments = 1
     optional_arguments = 0
     final_argument_whitespace = False
-    option_spec = {}  # type: Dict
+    option_spec = {
+        'prefix': directives.unchanged
+    }
 
     def run(self):
         # TODO: python context?
@@ -203,7 +209,10 @@ class CfgCurrentConfig(SphinxDirective):
         if configname == 'None':
             self.env.ref_context.pop('cfg:config', None)
         else:
-            self.env.ref_context['cfg:config'] = configname
+            prefix = self.options.get('prefix', "")
+            if prefix:
+                configname = prefix + "." + configname
+            self.env.ref_context['cfg:config'] = (configname, prefix)
         return []
 
 
@@ -437,9 +446,10 @@ class CfgDomain(Domain):
         # check validity of `include` names
 
         # make includes recursive
-        handled_recursive = set([])
-        for config in master_configs.keys():
-            self._set_recursive_include(config, handled_recursive)
+        if self.env.config.cfg_recursive_includes:
+            handled_recursive = set([])
+            for config in master_configs.keys():
+                self._set_recursive_include(config, handled_recursive)
         return master_configs
 
     def _build_config_options(self):
@@ -482,6 +492,9 @@ class CfgDomain(Domain):
 
 
 def setup(app):
+    app.add_config_value('cfg_recursive_includes', True, 'html')
+    app.add_config_value('cfg_config_name_prefix', ['py:module', 'py:class'], 'html')
+
     app.add_domain(CfgDomain)
 
     app.add_node(cfgconfig)

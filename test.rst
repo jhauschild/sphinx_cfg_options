@@ -34,10 +34,11 @@ directive to document another parameter for all vehicles.
 
 
 .. cfg:option:: fuel
+    :config: Vehicle
     :type: string
     :default: "gasoline"
 
-    Type of the used fuel, can be 'gasoline' or 'diesel'.
+    Type of the used fuel, ``"gasoline"`` or ``"diesel"``.
 
 Now we want to setup a factory for cars.
 The car factory can use the vehicle factory, so the `config` of the car factory

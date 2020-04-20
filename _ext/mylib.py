@@ -42,11 +42,10 @@ class A:
         self.params = params
         self.x = 2
 
-    def show_params(self):
-        """Print keys of :attr:`params`.
+    def do_something(self):
+        """Some function using `self.params`.
 
         .. cfg:config :: DMRG
-            :noindex:
 
             .. cfg:option :: first
                 :type: int
