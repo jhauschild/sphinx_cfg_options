@@ -41,6 +41,7 @@ class A:
         """Some function using `self.params`.
 
         .. cfg:config :: DMRG
+
             first: int
                 Another description of the `first` parameter.
         """

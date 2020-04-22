@@ -1,7 +1,5 @@
 # TODO: further config values
 
-# TODO: make parsing numpy-doc-style the default
-# TODO: parse type of CfgOption
 # TODO: add event before parsing the content
 # TODO: can we avoid requiring a newline after the directive header?
 
@@ -54,6 +52,7 @@ class CfgConfig(ObjectDescription):
 
     objtype = "config"
     required_arguments = 1
+    optional_arguments = 0
 
     option_spec = {
         'noindex': directives.flag,
@@ -126,9 +125,7 @@ class CfgConfig(ObjectDescription):
 
     def parse_numpydoc_style_options(self):
         option_header_re = re.compile("([\w.]*)\s*(?::\s*([^=]*))?(?:=\s*(\S*)\s*)?$")
-
-        # TODO emit event
-
+        self.app.emit('cfg-parse_config', self)
         self.content.disconnect()  # avoid screwing up the parsing of the parent
         N = len(self.content)
         # i = index in the lines
@@ -168,6 +165,16 @@ def _get_indent(line):
             return i
     return -1
 
+def _parse_inline(state, line, info):
+    source = StringList([line], items=[info])
+    node = nodes.paragraph()
+    state.nested_parse(source, 0, node)
+    par = node[0]
+    assert isinstance(node, nodes.paragraph)
+    par = node[0]
+    assert isinstance(node, nodes.paragraph)
+    return par.children
+
 
 class CfgOption(ObjectDescription):
 
@@ -198,11 +205,17 @@ class CfgOption(ObjectDescription):
 
         typ = self.options.get('type')
         if typ:
-            signode += addnodes.desc_annotation(typ, ': ' + typ)
+            type_node = addnodes.desc_annotation(': ', ': ')
+            info = self.content.parent.info(1)  # might be off my +- a few lines...
+            type_node.extend(_parse_inline(self.state, typ, info))
+            signode += type_node
 
         defaultvalue = self.options.get('default')
         if defaultvalue:
-            signode += addnodes.desc_annotation(defaultvalue, ' = ' + defaultvalue)
+            val_node = addnodes.desc_annotation(' = ', ' = ')
+            info = self.content.parent.info(1)  # might be off my +- a few lines...
+            val_node.extend(_parse_inline(self.state, defaultvalue, info))
+            signode += val_node
 
         return fullname, config
 
@@ -523,7 +536,9 @@ class CfgDomain(Domain):
         return new_includes
 
 
+
 def setup(app):
+    app.add_event('cfg-parse_config')
     app.add_config_value('cfg_recursive_includes', True, 'html')
     app.add_config_value('cfg_parse_numpydoc_style_options', True, 'html')
 

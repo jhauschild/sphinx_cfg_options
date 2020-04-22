@@ -33,7 +33,7 @@ If we want to define only a single option value, we can use the
 
 .. cfg:option:: fuel
     :config: Vehicle
-    :type: string
+    :type: ``a value``
     :default: "gasoline"
 
     Type of the used fuel, ``"gasoline"`` or ``"diesel"``.
@@ -73,3 +73,5 @@ However, all but one should have `:noindex:` set, and only the one not having `:
 .. cfg:config:: ElectricCar
     :noindex:
 
+.. todo:: 
+ this is a test

@@ -4,25 +4,24 @@ More tests
 Link to :cfg:config:`DMRG`.
 
 Link to nonexistent :cfg:config:`ABCD`.
+We can also document an empty config.
 
-.. currentmodule:: mylib
+.. cfg:config:: empty_example
 
-.. function:: myfunction
+And we can document another example
 
-    :param x: Parameter `x` desription.
-    :type x: int
-    :param y: Parameter `y` desription.
-    :type y: int
-
-We can also document an empty config
-
-.. cfg:config:: parsed
+.. cfg:config:: another_example
 
     x : asdf
         The `x` parameter
     y : :class:`mylib.B`    =   None
           Another parameter, called `y`, with a default value.
-    z.a.sd.f : :class:`mylib.B`   =   2
+    z : :class:`mylib.B`   =   2
         Another parameter, called `y`, with a default value.
 
 End of the config
+
+.. cfg:option:: test
+    :config: DMRG
+
+    How does it handle adding references to other documents?
