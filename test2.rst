@@ -25,3 +25,13 @@ End of the config
     :config: DMRG
 
     How does it handle adding references to other documents?
+
+.. cfg:config:: a_very_lengthy_name_example
+
+    x : int
+        The `x` parameter
+
+.. cfg:config:: another_very_lengthy_name_example
+
+    x : int
+        The `x` parameter

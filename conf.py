@@ -39,12 +39,31 @@ language = None
 
 exclude_patterns = []
 
+# ----- Options for the the extension -------
+
+# If config A includes B and B includes C, this option sets whether A automatically includes C
+# cfg_recursive_includes = True
+
+# cfg_parse_numpydoc_style_options = True
+# If cfg_parse_numpydoc_style_options=True, the content of the ``.. cfg:config::` directive
+# should be of the following form:
+#    option_name : option_type = default_value
+#       Description of option.
+#    another_option : int
+#       Description of option `another_option`.
+#       Possibly over multiple lines.
+
+
+cfg_table_summary = False
+
+# ----- Output options ----------------------
+
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
 
 
 html_theme = 'alabaster'
-# html_theme = 'sphinx_rtd_theme'
+html_theme = 'sphinx_rtd_theme'
 
 html_static_path = ['_static']
 
@@ -62,3 +81,4 @@ html_sidebars = {
 
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'parameter-testdoc'
+

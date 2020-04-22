@@ -73,5 +73,3 @@ However, all but one should have `:noindex:` set, and only the one not having `:
 .. cfg:config:: ElectricCar
     :noindex:
 
-.. todo:: 
- this is a test

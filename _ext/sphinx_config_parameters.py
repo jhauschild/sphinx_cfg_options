@@ -1,7 +1,5 @@
-# TODO: further config values
+# TODO: does it work if there is no config defined at all?
 
-# TODO: add event before parsing the content
-# TODO: can we avoid requiring a newline after the directive header?
 
 import re
 from collections import namedtuple
@@ -30,7 +28,7 @@ logger = logging.getLogger(__name__)
 ConfigEntry = namedtuple('ConfigEntry', "fullname, dispname, docname, anchor, master, includes")
 
 # OptionEntry is used in CfgDomain.data['config2options']
-OptionEntry = namedtuple('OptionEntry', "fullname, dispname, config, docname, anchor, context")
+OptionEntry = namedtuple('OptionEntry', "fullname, dispname, config, docname, anchor, context, typ, default")
 
 # ObjectsEntry is returned by Domain.get_objects()
 ObjectsEntry = namedtuple('ObjectsEntry', "name, dispname, typ, docname, anchor, prio")
@@ -125,7 +123,7 @@ class CfgConfig(ObjectDescription):
 
     def parse_numpydoc_style_options(self):
         option_header_re = re.compile("([\w.]*)\s*(?::\s*([^=]*))?(?:=\s*(\S*)\s*)?$")
-        self.app.emit('cfg-parse_config', self)
+        self.env.app.emit('cfg-parse_config', self)
         self.content.disconnect()  # avoid screwing up the parsing of the parent
         N = len(self.content)
         # i = index in the lines
@@ -234,6 +232,8 @@ class CfgOption(ObjectDescription):
                                        docname=self.env.docname,
                                        anchor=node_id,
                                        context=context,
+                                       typ=self.options.get('type', ""),
+                                       default=self.options.get('default', ""),
                                        )
             config_entries = self.env.domaindata['cfg']['config2options'].setdefault(config, [])
             config_entries.append(option_entry)
@@ -275,18 +275,49 @@ class ConfigNodeProcessor:
             config = node.config
             options = self.domain.config_options[config]
 
-            new_content = [self.create_option_reference(o, config) for o in options]
-            if len(new_content) > 1:
-                listnode = nodes.bullet_list()
-                for entry in new_content:
-                    listnode += nodes.list_item('', entry)
-                new_content = listnode
+            if self.builder.config.cfg_table_summary:
+                table_spec = addnodes.tabular_col_spec()
+                table_spec['spec'] = r'\X{1}{4}\X{1}{4}\X{2}{4}'
+                table = nodes.table("", classes=["longtable"])
+                group = nodes.tgroup('', cols=3)
+                table.append(group)
+                group.append(nodes.colspec('', colwidth=20))
+                group.append(nodes.colspec('', colwidth=20))
+                group.append(nodes.colspec('', colwidth=60))
+                body = nodes.tbody('')
+                group.append(body)
+                for opt in options:
+                    body += self.create_option_reference_table_row(opt, config)
+                new_content = [table_spec, table]
+            else:
+                new_content = [self.create_option_reference(o, config) for o in options]
+                if len(new_content) > 1:
+                    listnode = nodes.bullet_list()
+                    for entry in new_content:
+                        listnode += nodes.list_item('', entry)
+                    new_content = listnode
             node.replace_self(new_content)
 
+    def create_option_reference_table_row(self, option, config):
+        # OptionEntry: name, dispname, config, docname, anchor, context
+        row = nodes.row("")
+        par = nodes.paragraph()
+        name = addnodes.literal_strong(option.dispname, option.dispname)
+        name = self.make_refnode(option.docname, option.anchor, name)
+        par += name
+        row += nodes.entry("", par)
+        par = nodes.paragraph()
+        par += self._make_config_xref(option.config)
+        row += nodes.entry("", par)
+        context = option.context
+        if context is None:
+            context = ""
+        row += nodes.entry("", addnodes.literal_emphasis(context, context))
+        return row
 
     def create_option_reference(self, option, config):
         par = nodes.paragraph()
-        # OptionEntry = namedtuple('OptionEntry', "name, dispname, config, docname, anchor, context")
+        # OptionEntry = name, dispname, config, docname, anchor, context
         innernode = addnodes.literal_strong(option.dispname, option.dispname)
         par += self.make_refnode(option.docname, option.anchor, innernode)
         if option.config != config:
@@ -297,6 +328,7 @@ class ConfigNodeProcessor:
             par += nodes.Text(" defined in ")
             par += addnodes.literal_emphasis(option.context, option.context)
         return par
+
 
     def make_refnode(self, docname, anchor, innernode):
         try:
@@ -316,25 +348,40 @@ class ConfigNodeProcessor:
         return node
 
 
-# TODO: which indices do we need?
 class CfgOptionIndex(Index):
     name = 'option'
     localname = 'Config Option Index'
     shortname = 'Config Option'
 
     def generate(self, docnames=None):
-        content = {}
-        for config, options in self.domain.data['config2options'].items():
-            for option_entry in options:
-                ind_entry = IndexEntry(name=option_entry.dispname,
-                                       subtype=0,
-                                       docname=option_entry.docname,
-                                       anchor=option_entry.anchor,
-                                       extra=config,
+        config_options = self.domain.config_options.copy()
+        content = []
+        dummy_option = OptionEntry("", "", "", "", "", "", "", "")
+        for k in sorted(config_options.keys(), key=lambda x: x.upper()):
+            options = config_options[k]
+            if len(options) == 0:
+                content.append((k, []))
+                continue
+            index_list = []
+            last_name = ""
+            for opt, next_opt in zip(options, options[1:] + [dummy_option]):
+                name = opt.dispname
+                if name != last_name:
+                    if name == next_opt.dispname:
+                        index_list.append(IndexEntry(name, 1, opt.docname, opt.anchor, "mulitple definitions", "", ""))
+                        subtype = 2
+                    else:
+                        subtype = 0
+                ind_entry = IndexEntry(name=opt.dispname,
+                                       subtype=subtype,
+                                       docname=opt.docname,
+                                       anchor=opt.anchor,
+                                       extra=opt.context,
                                        qualifier='',
-                                       descr='')
-                content.setdefault(config, []).append(ind_entry)
-        content = [(k, content[k]) for k in sorted(content.keys())]
+                                       descr=opt.config)
+                index_list.append(ind_entry)
+                last_name = name
+            content.append((k, index_list))
         return (content, True)
 
 
@@ -344,18 +391,24 @@ class CfgConfigIndex(Index):
     shortname = 'Config Index'
 
     def generate(self, docnames=None):
+        master_configs = self.domain.master_configs
+        data_configs = self.domain.data['config']
         content = {}
-        items = self.domain.get_objects()
-        items = [entry for entry in items if entry.typ != "option"]
-        items = sorted(items, key=lambda item: item[1])
-        for name, dispname, typ, docname, anchor, prio in items:
-            lis = content.setdefault(dispname[0].upper(), [])
-            lis.append((
-                dispname, 0, docname,
-                anchor,
-                docname, '', typ
-            ))
-        res = [(k, v) for k, v in sorted(content.items())]
+        for key in sorted(master_configs.keys(), key=lambda k: k.upper()):
+            index_list = content.setdefault(key[0].upper(), [])
+            data = [config for config in data_configs if config.fullname == key]
+            master = master_configs[key]
+            if len(data) > 1:
+                index_list.append(IndexEntry(master.dispname, 1, master.docname, master.anchor,
+                                             "master", "includes", ', '.join(master.includes)))
+                for config in data:
+                    index_list.append(IndexEntry(config.dispname, 2, config.docname, config.anchor,
+                                                 "", "includes", ', '.join(master.includes)))
+            else:
+                index_list.append(IndexEntry(master.dispname, 0, master.docname, master.anchor,
+                                             "", "includes", ', '.join(master.includes)))
+
+        res = [(k, content[k]) for k in sorted(content.keys())]
         return (res, True)
 
 
@@ -541,6 +594,7 @@ def setup(app):
     app.add_event('cfg-parse_config')
     app.add_config_value('cfg_recursive_includes', True, 'html')
     app.add_config_value('cfg_parse_numpydoc_style_options', True, 'html')
+    app.add_config_value('cfg_table_summary', True, 'html')
 
     app.add_domain(CfgDomain)
 
