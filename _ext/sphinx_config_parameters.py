@@ -1,6 +1,3 @@
-# TODO strip config context from option context
-
-
 import re
 from collections import namedtuple
 
@@ -42,9 +39,10 @@ class cfgconfig(nodes.General, nodes.Element):
     """A node to be replaced by a list of options for a given `config`.
 
     The replacement happens in :meth:`ConfigNodeProcessor.process`."""
-    def __init__(self, config):
+    def __init__(self, config, context):
         super().__init__('')
         self.config = config
+        self.context = context
 
 
 class CfgConfig(ObjectDescription):
@@ -108,7 +106,7 @@ class CfgConfig(ObjectDescription):
 
     def transform_content(self, contentnode):
         if 'nolist' not in self.options:
-            contentnode.insert(0, cfgconfig(self.names[-1]))
+            contentnode.insert(0, cfgconfig(self.names[-1], self.env.ref_context['cfg:context']))
         super().transform_content(contentnode)
 
     def after_content(self):
@@ -217,8 +215,7 @@ class CfgOption(ObjectDescription):
         defaultvalue = self.options.get('default')
         if defaultvalue:
             val_node = addnodes.desc_annotation(' = ', ' = ')
-            info = self.content.parent.info(1)  # might be off by a few lines...
-            val_node.extend(_parse_inline(self.state, defaultvalue, info))
+            val_node += nodes.literal(defaultvalue, defaultvalue)
             signode += val_node
 
         return fullname, config
@@ -282,6 +279,7 @@ class ConfigNodeProcessor:
     def process(self, doctree):
         for node in doctree.traverse(cfgconfig):
             config = node.config
+            context = node.context
             options = self.domain.config_options[config]
 
             if self.builder.config.cfg_table_summary:
@@ -304,10 +302,10 @@ class ConfigNodeProcessor:
                 body = nodes.tbody('')
                 group.append(body)
                 for opt in options:
-                    body += self.create_option_reference_table_row(opt, config)
+                    body += self.create_option_reference_table_row(opt, config, context)
                 new_content = [table_spec, table]
             else:
-                new_content = [self.create_option_reference(o, config) for o in options]
+                new_content = [self.create_option_reference(o, config, context) for o in options]
                 if len(new_content) > 1:
                     listnode = nodes.bullet_list()
                     for entry in new_content:
@@ -315,9 +313,9 @@ class ConfigNodeProcessor:
                     new_content = listnode
             node.replace_self(new_content)
 
-    def create_option_reference_table_row(self, option, config):
+    def create_option_reference_table_row(self, option, config, context):
         row = nodes.row("")
-        par = self.create_option_reference(option, config)
+        par = self.create_option_reference(option, config, context)
         row += nodes.entry("", par)
         par = nodes.paragraph()
         if option.default:
@@ -329,7 +327,7 @@ class ConfigNodeProcessor:
         row += nodes.entry("", par)
         return row
 
-    def create_option_reference(self, option, config):
+    def create_option_reference(self, option, config, context):
         par = nodes.paragraph()
         innernode = addnodes.literal_strong(option.dispname, option.dispname)
         par += self.make_refnode(option.docname, option.anchor, innernode)
@@ -338,8 +336,12 @@ class ConfigNodeProcessor:
             par += self._make_config_xref(option.config)
             par += nodes.Text(")")
         if option.context is not None:
-            par += nodes.Text(" in ")
-            par += addnodes.literal_emphasis(option.context, option.context)
+            opt_context = option.context
+            if opt_context.startswith(context):
+                opt_context = opt_context[len(context):]
+            if opt_context:
+                par += nodes.Text(" in ")
+                par += addnodes.literal_emphasis(option.context, option.context)
         return par
 
 

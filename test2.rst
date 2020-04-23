@@ -1,7 +1,7 @@
 More tests
 ==========
 
-Link to :cfg:config:`DMRG`.
+Link to :cfg:config:`A_config`.
 
 Link to nonexistent :cfg:config:`ABCD`.
 We can also document an empty config.
@@ -22,7 +22,7 @@ And we can document another example
 End of the config
 
 .. cfg:option:: test
-    :config: DMRG
+    :config: A_config
 
     How does it handle adding references to other documents?
 

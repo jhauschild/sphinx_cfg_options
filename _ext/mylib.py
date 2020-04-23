@@ -14,7 +14,7 @@ class B:
 class A:
     """My A class.
 
-    .. cfg:config :: DMRG
+    .. cfg:config :: A_config
 
         first : int
             Describe the `first` parameter, context ``allowed``.
@@ -40,7 +40,7 @@ class A:
     def do_something(self):
         """Some function using `self.params`.
 
-        .. cfg:config :: DMRG
+        .. cfg:config :: A_config
 
             first: int
                 Another description of the `first` parameter.
