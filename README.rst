@@ -1,5 +1,5 @@
-Config Options
-==============
+Config Options, a Sphinx extension
+==================================
 
 Motivation
 ----------
