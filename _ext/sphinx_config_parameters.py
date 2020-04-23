@@ -28,7 +28,8 @@ logger = logging.getLogger(__name__)
 ConfigEntry = namedtuple('ConfigEntry', "fullname, dispname, docname, anchor, master, includes, source, line")
 
 # OptionEntry is used in CfgDomain.data['config2options']
-OptionEntry = namedtuple('OptionEntry', "fullname, dispname, config, docname, anchor, context, typ, default, content, source, line")
+OptionEntry = namedtuple('OptionEntry', "fullname, dispname, config, docname, anchor, context, "
+                         "default, summary, source, line")
 
 # ObjectsEntry is returned by Domain.get_objects()
 ObjectsEntry = namedtuple('ObjectsEntry', "name, dispname, typ, docname, anchor, prio")
@@ -143,7 +144,8 @@ class CfgConfig(ObjectDescription):
             if m is None:
                 source, line = self.content.info(field_beg)
                 location = "{0!s}:{1!s}".format(source, line)
-                logger.warning("can't parse config option header-line " + repr(field_beg_line),
+                logger.warning("can't parse config option header-line %s",
+                               repr(field_beg_line),
                                location=location)
                 continue
             name, typ, default = m.groups()
@@ -208,14 +210,14 @@ class CfgOption(ObjectDescription):
         typ = self.options.get('type')
         if typ:
             type_node = addnodes.desc_annotation(': ', ': ')
-            info = self.content.parent.info(1)  # might be off my +- a few lines...
+            info = self.content.parent.info(1)  # might be off by a few lines...
             type_node.extend(_parse_inline(self.state, typ, info))
             signode += type_node
 
         defaultvalue = self.options.get('default')
         if defaultvalue:
             val_node = addnodes.desc_annotation(' = ', ' = ')
-            info = self.content.parent.info(1)  # might be off my +- a few lines...
+            info = self.content.parent.info(1)  # might be off by a few lines...
             val_node.extend(_parse_inline(self.state, defaultvalue, info))
             signode += val_node
 
@@ -237,9 +239,8 @@ class CfgOption(ObjectDescription):
                                        docname=self.env.docname,
                                        anchor=node_id,
                                        context=context,
-                                       typ=self.options.get('type', ""),
                                        default=self.options.get('default', ""),
-                                       content=('\n'.join(self.content)),
+                                       summary=self.content[0],
                                        source=source,
                                        line=line,
                                        )
@@ -292,6 +293,14 @@ class ConfigNodeProcessor:
                 group.append(nodes.colspec('', colwidth=20))
                 group.append(nodes.colspec('', colwidth=20))
                 group.append(nodes.colspec('', colwidth=60))
+                if self.builder.config.cfg_table_add_header:
+                    header = nodes.thead('')
+                    group.append(header)
+                    row = nodes.row()
+                    row += nodes.entry("", nodes.Text("option"))
+                    row += nodes.entry("", nodes.Text("default"))
+                    row += nodes.entry("", nodes.Text("summary"))
+                    header.append(row)
                 body = nodes.tbody('')
                 group.append(body)
                 for opt in options:
@@ -307,22 +316,21 @@ class ConfigNodeProcessor:
             node.replace_self(new_content)
 
     def create_option_reference_table_row(self, option, config):
-        # OptionEntry: name, dispname, config, docname, anchor, context, content
         row = nodes.row("")
         par = self.create_option_reference(option, config)
         row += nodes.entry("", par)
         par = nodes.paragraph()
-        par += self._make_config_xref(option.config)
+        if option.default:
+            par += nodes.literal(option.default, option.default)
         row += nodes.entry("", par)
-        context = option.context
-        if context is None:
-            context = ""
-        row += nodes.entry("", addnodes.literal_emphasis(context, context))
+        summary = option.summary
+        par = nodes.paragraph()
+        par += nodes.Text(summary)
+        row += nodes.entry("", par)
         return row
 
     def create_option_reference(self, option, config):
         par = nodes.paragraph()
-        # OptionEntry = name, dispname, config, docname, anchor, context, content
         innernode = addnodes.literal_strong(option.dispname, option.dispname)
         par += self.make_refnode(option.docname, option.anchor, innernode)
         if option.config != config:
@@ -361,7 +369,7 @@ class CfgOptionIndex(Index):
     def generate(self, docnames=None):
         config_options = self.domain.config_options.copy()
         content = []
-        dummy_option = OptionEntry("", "", "", "", "", "", "", "", "", "", "")
+        dummy_option = OptionEntry(*([""]*10))
         for k in sorted(config_options.keys(), key=lambda x: x.upper()):
             options = config_options[k]
             if len(options) == 0:
@@ -609,7 +617,8 @@ def setup(app):
     app.add_event('cfg-parse_config')
     app.add_config_value('cfg_recursive_includes', True, 'html')
     app.add_config_value('cfg_parse_numpydoc_style_options', True, 'html')
-    app.add_config_value('cfg_table_summary', False, 'html')
+    app.add_config_value('cfg_table_summary', True, 'html')
+    app.add_config_value('cfg_table_add_header', True, 'html')
 
     app.add_domain(CfgDomain)
 

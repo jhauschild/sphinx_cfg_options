@@ -23,8 +23,8 @@ It can define the following config with a ``.. cfg:config:: Vehicle`` directive.
 
 .. cfg:config:: Vehicle
 
-   max_speed : float
-      Maximum speed of the vehicle.
+   max_speed : float = 220.
+      Maximum speed of the vehicle in km/h.
 
 In the function that sets up the engine, we notice that we need another
 parameter: the type of the fuel. 
@@ -61,7 +61,7 @@ In case of duplicated parameter keys, all definitions are listed.
 
    fuel:
       Additional choice ``"battery"`` on top of what :cfg:option:`Vehicle.fuel` defines.
-   hybrid:bool=False
+   hybrid : bool = False
       Whether the car has both an internal combustion engine and an electric motor, or not.
 
 As you might have expected, the references :cfg:option:`Vehicle.fuel` and :cfg:option:`ElectricCar.fuel` now
@@ -72,3 +72,7 @@ However, all but one should have `:noindex:` set, and only the one not having `:
 
 .. cfg:config:: ElectricCar
 
+
+Limitations
+-----------
+- Right now, the "summary" of an option to be included into the summary table of a config does not get parsed.
