@@ -3,7 +3,7 @@
 import sys
 import os
 
-sys.path.append(os.path.abspath('./_ext'))
+sys.path.append(os.path.abspath('./ext'))
 
 extensions = ['sphinx.ext.coverage',
               'sphinx.ext.viewcode',
@@ -41,23 +41,11 @@ exclude_patterns = []
 
 # ----- Options for the the extension -------
 
-# If config A includes B and B includes C, this option sets whether A automatically includes C
 #cfg_recursive_includes = True
-
-# If cfg_parse_numpydoc_style_options=True, the content of the ``.. cfg:config::` directive
-# should be of the following form:
-#    option_name : option_type = default_value
-#       Description of option.
-#    another_option : int
-#       Description of option `another_option`.
-#       Possibly over multiple lines.
 #cfg_parse_numpydoc_style_options = True
-
-# Include the header "option default summary" in the option tables in the beginnning of a config.
+# cfg_table_summary = "table"
 #cfg_table_add_header=True
 
-
-cfg_table_summary = True
 
 # ----- Output options ----------------------
 

@@ -14,9 +14,22 @@ The motivation for this extension is that I want to document the entries of the 
 However, inside the `setup` function, we need to collect all the possible values of the `config` to give the user an idea
 of what he options he can choose. That's what this extension does.
 
+What this is
+------------
+This (more precisely, the file `ext/sphinx_cfg_options.py`) is an extension for `Sphinx <https://www.sphinx-doc.org>`_.
+It adds the domain `cfg` with directives ``.. cfg:config:: config_name`` to document a config (= a bunch of options)
+and ``.. cfg:option:: option_name`` (= an entry of a config). The roles ``:cfg:config:`` and ``:cfg:option:`` 
+allow references to these definitions from anywhere in the documentation.
+Moreover, the options of a given `config` are collected and summarized at the beginning of the config description.
+Further, there are two indices provided, which list all the options and configs at a single place and enhance search
+results:
 
-Example
--------
+* :ref:`cfg-config-index`
+* :ref:`cfg-option-index`
+
+
+Example usage
+-------------
 
 Consider a factory producing vehicles. 
 It can define the following config with a ``.. cfg:config:: Vehicle`` directive.
@@ -73,13 +86,39 @@ In case of duplicated parameter keys, all definitions are listed.
 As you might have expected, the references :cfg:option:`Vehicle.fuel` and :cfg:option:`ElectricCar.fuel` now
 point to the two different definitions.
 
-One last hint: you can include a config of the same name at multiple positions in the documentation.
-However, all but one should have `:noindex:` set, and only the one not having `:noindex:` can define the includes.
+.. tip ::
+    You can include a config of the same name at multiple positions in the documentation, and you don't need to 
+    repeat all the options again. If you want to specify what the `:cfg:config:` role points to, you can 
+    use the `:master:` option in one of the ``.. cfg:config`` directives, as demonstrated in the following.
 
 .. cfg:config:: ElectricCar
+    :master:
+
+Installation
+------------
+You need Sphinx version >=3.0.
+Put the `ext/sphinx_cfg_options.py` somewhere where it can be imported as python module during the sphinx build.
+(This can be acchieved by updating ``sys.path`` inside the `conf.py`, take a look at the example provided in this repo).
+
+.. cfg:config:: conf.py options
+    
+    cfg_recursive_includes = True
+         If config A includes B and B includes C, this option sets whether A automatically includes C.
+    cfg_parse_numpydoc_style_options = True
+        Allows to disable the parsing of the ``.. cfg:config::`` content.
+        If disabled, you need to use the ``.. cfg:option::`` for all context.
+    cfg_summary : "table", "list", or None = "table"
+        Choose how to format the summary at the g
+    cfg_table_add_header = True
+        Include the header "option default summary" in the option tables in the beginnning of a config.
+
 
 
 Limitations
 -----------
 - Right now, the "summary" of an option to be included into the summary table of a config does not get parsed.
 - Parsing of the `optionname : type = value` line is probably not very stable.
+
+License
+-------
+MIT license, feel free to reuse the extension in your own projects.

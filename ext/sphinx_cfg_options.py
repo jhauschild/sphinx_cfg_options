@@ -1,3 +1,6 @@
+# Copyright 2020 Johannes Hauschild, MIT license
+# This file is maintained at https://github.com/jhauschild/sphinx_cfg_options
+
 import re
 from collections import namedtuple
 
@@ -285,7 +288,9 @@ class ConfigNodeProcessor:
             context = node.context
             options = self.domain.config_options[config]
 
-            if self.builder.config.cfg_table_summary:
+            if self.builder.config.cfg_summary is None:
+                new_content = []
+            elif self.builder.config.cfg_summary == "table":
                 table_spec = addnodes.tabular_col_spec()
                 table_spec['spec'] = r'\X{1}{4}\X{1}{4}\X{2}{4}'
                 table = nodes.table("", classes=["longtable"])
@@ -307,13 +312,15 @@ class ConfigNodeProcessor:
                 for opt in options:
                     body += self.create_option_reference_table_row(opt, config, context)
                 new_content = [table_spec, table]
-            else:
+            elif self.builder.config.cfg_summary == "list":
                 new_content = [self.create_option_reference(o, config, context) for o in options]
                 if len(new_content) > 1:
                     listnode = nodes.bullet_list()
                     for entry in new_content:
                         listnode += nodes.list_item('', entry)
-                    new_content = listnode
+                    new_content = [listnode]
+            else:
+                raise ValueError("unknown value for config option `cfg_summary`.")
             node.replace_self(new_content)
 
     def create_option_reference_table_row(self, option, config, context):
@@ -622,7 +629,7 @@ def setup(app):
     app.add_event('cfg-parse_config')
     app.add_config_value('cfg_recursive_includes', True, 'html')
     app.add_config_value('cfg_parse_numpydoc_style_options', True, 'html')
-    app.add_config_value('cfg_table_summary', True, 'html')
+    app.add_config_value('cfg_summary', "table", 'html')
     app.add_config_value('cfg_table_add_header', True, 'html')
 
     app.add_domain(CfgDomain)
