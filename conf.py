@@ -53,7 +53,7 @@ exclude_patterns = []
 pygments_style = 'sphinx'
 
 
-html_theme = 'alabaster'
+# html_theme = 'alabaster'
 html_theme = 'sphinx_rtd_theme'
 
 html_static_path = ['_static']
@@ -68,5 +68,9 @@ html_sidebars = {
         'searchbox.html',
         'donate.html',
     ]
+}
+
+html_context = {
+    'css_files': ['_static/custom.css'],  # to highlight targets
 }
 
