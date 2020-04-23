@@ -1,6 +1,14 @@
 Config Options, a Sphinx extension
 ==================================
 
+.. image:: https://readthedocs.org/projects/sphinx-cfg-options/badge/?version=latest
+    :target: https://sphinx-cfg-options.readthedocs.io/en/latest/?badge=latest
+    :alt: Documentation Status
+
+This is the `README.rst` file of the repo.
+I recommend to compare the raw text on `github <https://github.com/jhauschild/sphinx_cfg_options>`_ 
+with the `built documentation <https://sphinx-cfg-options.readthedocs.io/en/latest/README.html>`_.
+
 Motivation
 ----------
 During coding, I often define a (nested) dictionary `config` which collects all the necessary parameters 
