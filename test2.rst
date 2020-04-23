@@ -32,6 +32,7 @@ End of the config
         The `x` parameter
 
 .. cfg:config:: another_very_lengthy_name_example
+    :include: a_very_lengthy_name_example
 
     x : int
         The `x` parameter

@@ -19,7 +19,7 @@ Example
 -------
 
 Consider a factory producing vehicles. 
-It can define the following config with a `.. cfg:config:: Vehicle` directive:
+It can define the following config with a ``.. cfg:config:: Vehicle`` directive.
 
 .. cfg:config:: Vehicle
 
@@ -33,7 +33,7 @@ If we want to define only a single option value, we can use the
 
 .. cfg:option:: fuel
     :config: Vehicle
-    :type: ``a value``
+    :type: str
     :default: "gasoline"
 
     Type of the used fuel, ``"gasoline"`` or ``"diesel"``.
@@ -71,5 +71,4 @@ One last hint: you can include a config of the same name at multiple positions i
 However, all but one should have `:noindex:` set, and only the one not having `:noindex:` can define the includes.
 
 .. cfg:config:: ElectricCar
-    :noindex:
 

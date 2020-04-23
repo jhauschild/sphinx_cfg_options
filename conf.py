@@ -42,9 +42,8 @@ exclude_patterns = []
 # ----- Options for the the extension -------
 
 # If config A includes B and B includes C, this option sets whether A automatically includes C
-# cfg_recursive_includes = True
+#cfg_recursive_includes = True
 
-# cfg_parse_numpydoc_style_options = True
 # If cfg_parse_numpydoc_style_options=True, the content of the ``.. cfg:config::` directive
 # should be of the following form:
 #    option_name : option_type = default_value
@@ -52,9 +51,10 @@ exclude_patterns = []
 #    another_option : int
 #       Description of option `another_option`.
 #       Possibly over multiple lines.
+#cfg_parse_numpydoc_style_options = True
 
 
-cfg_table_summary = False
+cfg_table_summary = True
 
 # ----- Output options ----------------------
 
