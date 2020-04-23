@@ -1,13 +1,13 @@
-Welcome to sphinxparameter's documentation!
-===========================================
+Welcome to sphinx cfg option's documentation!
+=============================================
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
-   test
-   test2
+   README
    mylib
+   tests
 
 Indices and tables
 ==================

@@ -1,5 +1,5 @@
-Config Parameters
-=================
+Config Options
+==============
 
 Motivation
 ----------
@@ -25,7 +25,7 @@ It can define the following config with a ``.. cfg:config:: Vehicle`` directive.
 
    max_speed : float = 220.
       Maximum speed of the vehicle in km/h.
-      
+
       This description might go over multiple lines and gets fully parse.
 
       .. note ::

@@ -1,7 +1,5 @@
-MyLib Testmodule
-----------------
+Example_lib Testmodule
+----------------------
 
-
-.. automodule :: mylib
+.. automodule :: example_lib
     :members:
-

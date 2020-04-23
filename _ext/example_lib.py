@@ -1,14 +1,9 @@
 """mylib docstring.
 
-This is only for debugging
+This module is only here to show how config options look inside the documention,
+when included from the doc-strings of actual python code.
 """
 
-
-class B:
-    """Another class."""
-    def run(self):
-        """do nothing."""
-        pass
 
 
 class A:
@@ -53,10 +48,17 @@ class Asub(A):
     pass
 
 
+class B:
+    """Another class."""
+    def run(self):
+        """do nothing."""
+        pass
+
+
 def complicated_function(a, b, c, params):
     """A complicated function.
 
-    .. cfg:config :: complicated_function.params
+    .. cfg:config :: complicated_function
 
         Na : int
            Number of repetitions for `a`.

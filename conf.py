@@ -10,7 +10,7 @@ extensions = ['sphinx.ext.coverage',
               'sphinx.ext.autodoc',
               'sphinx.ext.napoleon',
               'sphinx.ext.todo',
-              'sphinx_config_parameters']
+              'sphinx_cfg_options']
 
 source_suffix = '.rst'
 
@@ -22,7 +22,7 @@ needs_sphinx = '3.0'
 master_doc = 'index'
 
 # General information about the project.
-project = 'Config Parameters'
+project = 'Sphinx Config Options'
 copyright = u'2020, Johannes Hauschild'
 author = 'Johannes Hauschild'
 
@@ -53,6 +53,9 @@ exclude_patterns = []
 #       Possibly over multiple lines.
 #cfg_parse_numpydoc_style_options = True
 
+# Include the header "option default summary" in the option tables in the beginnning of a config.
+#cfg_table_add_header=True
+
 
 cfg_table_summary = True
 
@@ -78,7 +81,4 @@ html_sidebars = {
         'donate.html',
     ]
 }
-
-# Output file base name for HTML help builder.
-htmlhelp_basename = 'parameter-testdoc'
 

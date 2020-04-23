@@ -46,6 +46,7 @@ class cfgconfig(nodes.General, nodes.Element):
 
 
 class CfgConfig(ObjectDescription):
+    """Directive for ``.. cfg:config``, documenting a `config` = collection of options."""
 
     objtype = "config"
     required_arguments = 1
@@ -63,11 +64,7 @@ class CfgConfig(ObjectDescription):
     def handle_signature(self, sig, signode):
         fullname = sig
         signode += addnodes.desc_annotation('config ', 'config ')
-        signame = nodes.Text(sig)
-        if 'master' not in self.options:
-            signame = addnodes.pending_xref(sig, signame,
-                                            refdomain='cfg', reftype='config', reftarget=fullname)
-        signode += addnodes.desc_name(sig, '', signame)
+        signode += addnodes.desc_name(sig, '', nodes.Text(sig))
         return fullname
 
     def add_target_and_index(self, fullname, sig, signode):
@@ -105,8 +102,13 @@ class CfgConfig(ObjectDescription):
         super().before_content()
 
     def transform_content(self, contentnode):
+        config = self.env.ref_context['cfg:config']
         if 'nolist' not in self.options:
-            contentnode.insert(0, cfgconfig(self.names[-1], self.env.ref_context['cfg:context']))
+            contentnode.insert(0, cfgconfig(config, self.env.ref_context['cfg:context']))
+        else:
+            master_ref = addnodes.pending_xref(config, config, refdomain='cfg', reftype='config',
+                                               reftarget=config)
+            contentnode.insert(0, master_ref)
         super().transform_content(contentnode)
 
     def after_content(self):
@@ -179,6 +181,7 @@ def _parse_inline(state, line, info):
 
 
 class CfgOption(ObjectDescription):
+    """Directive for ``.. cfg:option``, documenting an option."""
 
     objtype = "option"
     option_spec = {
@@ -472,8 +475,8 @@ class CfgDomain(Domain):
                                config_entry.docname,
                                config_entry.anchor,
                                prio=0 if config_entry.master else 1)
-        for param_list in self.data['config2options'].values():
-            for option_entry in param_list:
+        for option_list in self.data['config2options'].values():
+            for option_entry in option_list:
                 yield ObjectsEntry(option_entry.fullname,
                                    option_entry.dispname,
                                    'config',
