@@ -102,14 +102,14 @@ Put the `ext/sphinx_cfg_options.py` somewhere where it can be imported as python
 
 .. cfg:config:: conf.py options
     
-    cfg_recursive_includes = True
+    cfg_options_recursive_includes = True
          If config A includes B and B includes C, this option sets whether A automatically includes C.
-    cfg_parse_numpydoc_style_options = True
+    cfg_options_parse_numpydoc_style_options = True
         Allows to disable the parsing of the ``.. cfg:config::`` content.
         If disabled, you need to use the ``.. cfg:option::`` for all context.
-    cfg_summary : "table", "list", or None = "table"
+    cfg_options_summary : "table", "list", or None = "table"
         Choose how to format the summary at the g
-    cfg_table_add_header = True
+    cfg_options_table_add_header = True
         Include the header "option default summary" in the option tables in the beginnning of a config.
 
 

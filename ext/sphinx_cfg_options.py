@@ -94,7 +94,7 @@ class CfgConfig(ObjectDescription):
         self.env.domaindata['cfg']['config'].append(config_entry)
 
     def before_content(self):
-        if self.config.cfg_parse_numpydoc_style_options and 'noparse' not in self.options:
+        if self.config.cfg_options_parse_numpydoc_style_options and 'noparse' not in self.options:
             self.parse_numpydoc_style_options()
         # save context
         if self.names:
@@ -130,7 +130,7 @@ class CfgConfig(ObjectDescription):
 
     def parse_numpydoc_style_options(self):
         option_header_re = re.compile("([\w.]*)\s*(?::\s*([^=]*))?(?:=\s*(\S*)\s*)?$")
-        self.env.app.emit('cfg-parse_config', self)
+        self.env.app.emit('cfg_options-parse_config', self)
         self.content.disconnect()  # avoid screwing up the parsing of the parent
         N = len(self.content)
         # i = index in the lines
@@ -288,9 +288,9 @@ class ConfigNodeProcessor:
             context = node.context
             options = self.domain.config_options[config]
 
-            if self.builder.config.cfg_summary is None:
+            if self.builder.config.cfg_options_summary is None:
                 new_content = []
-            elif self.builder.config.cfg_summary == "table":
+            elif self.builder.config.cfg_options_summary == "table":
                 table_spec = addnodes.tabular_col_spec()
                 table_spec['spec'] = r'\X{1}{4}\X{1}{4}\X{2}{4}'
                 table = nodes.table("", classes=["longtable"])
@@ -299,7 +299,7 @@ class ConfigNodeProcessor:
                 group.append(nodes.colspec('', colwidth=20))
                 group.append(nodes.colspec('', colwidth=20))
                 group.append(nodes.colspec('', colwidth=60))
-                if self.builder.config.cfg_table_add_header:
+                if self.builder.config.cfg_options_table_add_header:
                     header = nodes.thead('')
                     group.append(header)
                     row = nodes.row()
@@ -312,7 +312,7 @@ class ConfigNodeProcessor:
                 for opt in options:
                     body += self.create_option_reference_table_row(opt, config, context)
                 new_content = [table_spec, table]
-            elif self.builder.config.cfg_summary == "list":
+            elif self.builder.config.cfg_options_summary == "list":
                 new_content = [self.create_option_reference(o, config, context) for o in options]
                 if len(new_content) > 1:
                     listnode = nodes.bullet_list()
@@ -320,7 +320,7 @@ class ConfigNodeProcessor:
                         listnode += nodes.list_item('', entry)
                     new_content = [listnode]
             else:
-                raise ValueError("unknown value for config option `cfg_summary`.")
+                raise ValueError("unknown value for config option `cfg_options_summary`.")
             node.replace_self(new_content)
 
     def create_option_reference_table_row(self, option, config, context):
@@ -572,7 +572,7 @@ class CfgDomain(Domain):
                     master.includes.append(incl)
 
         # make includes recursive
-        if self.env.config.cfg_recursive_includes:
+        if self.env.config.cfg_options_recursive_includes:
             handled_recursive = set([])
             for config in master_configs.keys():
                 self._set_recursive_include(config, handled_recursive)
@@ -626,11 +626,11 @@ class CfgDomain(Domain):
 
 
 def setup(app):
-    app.add_event('cfg-parse_config')
-    app.add_config_value('cfg_recursive_includes', True, 'html')
-    app.add_config_value('cfg_parse_numpydoc_style_options', True, 'html')
-    app.add_config_value('cfg_summary', "table", 'html')
-    app.add_config_value('cfg_table_add_header', True, 'html')
+    app.add_event('cfg_options-parse_config')
+    app.add_config_value('cfg_options_recursive_includes', True, 'html')
+    app.add_config_value('cfg_options_parse_numpydoc_style_options', True, 'html')
+    app.add_config_value('cfg_options_summary', "table", 'html')
+    app.add_config_value('cfg_options_table_add_header', True, 'html')
 
     app.add_domain(CfgDomain)
 
