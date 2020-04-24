@@ -25,11 +25,13 @@ from sphinx.util import logging
 logger = logging.getLogger(__name__)
 
 # ConfigEntry is used in CfgDomain.data['config']
-ConfigEntry = namedtuple('ConfigEntry', "fullname, dispname, docname, anchor, master, includes, source, line")
+ConfigEntry = namedtuple('ConfigEntry',
+                         "fullname, dispname, docname, anchor, master, includes, source, line")
 
 # OptionEntry is used in CfgDomain.data['config2options']
-OptionEntry = namedtuple('OptionEntry', "fullname, dispname, config, docname, anchor, context, "
-                         "default, summary, source, line")
+OptionEntry = namedtuple(
+    'OptionEntry', "fullname, dispname, config, docname, anchor, context, "
+    "default, summary, source, line")
 
 # ObjectsEntry is returned by Domain.get_objects()
 ObjectsEntry = namedtuple('ObjectsEntry', "name, dispname, typ, docname, anchor, prio")
@@ -89,8 +91,7 @@ class CfgConfig(ObjectDescription):
                                    master=master,
                                    includes=includes,
                                    source=source,
-                                   line=line
-                                   )
+                                   line=line)
         self.env.domaindata['cfg']['config'].append(config_entry)
 
     def before_content(self):
@@ -109,7 +110,10 @@ class CfgConfig(ObjectDescription):
         if 'nolist' not in self.options:
             contentnode.insert(0, cfgconfig(config, self.env.ref_context['cfg:context']))
         else:
-            master_ref = addnodes.pending_xref(config, config, refdomain='cfg', reftype='config',
+            master_ref = addnodes.pending_xref(config,
+                                               config,
+                                               refdomain='cfg',
+                                               reftype='config',
                                                reftarget=config)
             contentnode.insert(0, master_ref)
         super().transform_content(contentnode)
@@ -119,7 +123,6 @@ class CfgConfig(ObjectDescription):
             del self.env.ref_context['cfg:config']
             del self.env.ref_context['cfg:in-config']
         super().after_content()
-
 
     def run(self):
         context_name = self.env.temp_data.get('object', None)
@@ -158,11 +161,12 @@ class CfgConfig(ObjectDescription):
             if default:
                 replace.append(next_indent + ":default: " + default)
             replace.append(next_indent)
-            field_beg_view = self.content[field_beg:field_beg+1]
+            field_beg_view = self.content[field_beg:field_beg + 1]
             field_beg_view *= len(replace)
             field_beg_view.data[:] = replace
-            self.content.insert(field_end, StringList([next_indent], items=[self.content.info(field_end-1)]))
-            self.content[field_beg:field_beg+1] = field_beg_view
+            self.content.insert(
+                field_end, StringList([next_indent], items=[self.content.info(field_end - 1)]))
+            self.content[field_beg:field_beg + 1] = field_beg_view
 
 
 def _get_indent(line):
@@ -205,8 +209,11 @@ class CfgOption(ObjectDescription):
 
         signode += addnodes.desc_annotation('option ', 'option ')
         if not self.env.ref_context.get('cfg:in-config', False):
-            signode += addnodes.pending_xref(sig, addnodes.desc_addname(config, config),
-                                            refdomain='cfg', reftype='config', reftarget=config)
+            signode += addnodes.pending_xref(sig,
+                                             addnodes.desc_addname(config, config),
+                                             refdomain='cfg',
+                                             reftype='config',
+                                             reftarget=config)
             signode += addnodes.desc_addname('', '.')
 
         signode += addnodes.desc_name(sig, '', nodes.Text(sig))
@@ -226,27 +233,26 @@ class CfgOption(ObjectDescription):
 
         return fullname, config
 
-
     def add_target_and_index(self, name_config, sig, signode):
         fullname, config = name_config
-        context = self.options.get('context',
-                                   self.env.ref_context.get('cfg:context', None))
+        context = self.options.get('context', self.env.ref_context.get('cfg:context', None))
         node_id = make_id(self.env, self.state.document, 'cfg-option', fullname)
         signode['ids'].append(node_id)
         self.state.document.note_explicit_target(signode)
         if 'noindex' not in self.options:
             source, line = self.state_machine.get_source_and_line()
-            option_entry = OptionEntry(fullname=fullname,
-                                       dispname=sig,
-                                       config=config,
-                                       docname=self.env.docname,
-                                       anchor=node_id,
-                                       context=context,
-                                       default=self.options.get('default', ""),
-                                       summary=self.content[0],
-                                       source=source,
-                                       line=line,
-                                       )
+            option_entry = OptionEntry(
+                fullname=fullname,
+                dispname=sig,
+                config=config,
+                docname=self.env.docname,
+                anchor=node_id,
+                context=context,
+                default=self.options.get('default', ""),
+                summary=self.content[0],
+                source=source,
+                line=line,
+            )
             config_entries = self.env.domaindata['cfg']['config2options'].setdefault(config, [])
             config_entries.append(option_entry)
 
@@ -354,7 +360,6 @@ class ConfigNodeProcessor:
                 par += addnodes.literal_emphasis(option.context, option.context)
         return par
 
-
     def make_refnode(self, docname, anchor, innernode):
         try:
             refnode = make_refnode(self.builder, self.docname, docname, anchor, innernode)
@@ -364,8 +369,7 @@ class ConfigNodeProcessor:
 
     def _make_config_xref(self, config):
         node = nodes.Text(config, config)
-        match = [(obj_entry.docname, obj_entry.anchor)
-                 for obj_entry in self.domain.get_objects()
+        match = [(obj_entry.docname, obj_entry.anchor) for obj_entry in self.domain.get_objects()
                  if obj_entry.name == config and obj_entry.typ == 'config']
         if len(match) > 0:
             docname, anchor = match[0]
@@ -381,7 +385,7 @@ class CfgOptionIndex(Index):
     def generate(self, docnames=None):
         config_options = self.domain.config_options.copy()
         content = []
-        dummy_option = OptionEntry(*([""]*10))
+        dummy_option = OptionEntry(*([""] * 10))
         for k in sorted(config_options.keys(), key=lambda x: x.upper()):
             options = config_options[k]
             if len(options) == 0:
@@ -393,7 +397,9 @@ class CfgOptionIndex(Index):
                 name = opt.dispname
                 if name != last_name:
                     if name == next_opt.dispname:
-                        index_list.append(IndexEntry(name, 1, opt.docname, opt.anchor, "mulitple definitions", "", ""))
+                        index_list.append(
+                            IndexEntry(name, 1, opt.docname, opt.anchor, "mulitple definitions",
+                                       "", ""))
                         subtype = 2
                     else:
                         subtype = 0
@@ -424,14 +430,17 @@ class CfgConfigIndex(Index):
             data = [config for config in data_configs if config.fullname == key]
             master = master_configs[key]
             if len(data) > 1:
-                index_list.append(IndexEntry(master.dispname, 1, master.docname, master.anchor,
-                                             "master", "includes", ', '.join(master.includes)))
+                index_list.append(
+                    IndexEntry(master.dispname, 1, master.docname, master.anchor, "master",
+                               "includes", ', '.join(master.includes)))
                 for config in data:
-                    index_list.append(IndexEntry(config.dispname, 2, config.docname, config.anchor,
-                                                 "", "includes", ', '.join(master.includes)))
+                    index_list.append(
+                        IndexEntry(config.dispname, 2, config.docname, config.anchor, "",
+                                   "includes", ', '.join(master.includes)))
             else:
-                index_list.append(IndexEntry(master.dispname, 0, master.docname, master.anchor,
-                                             "", "includes", ', '.join(master.includes)))
+                index_list.append(
+                    IndexEntry(master.dispname, 0, master.docname, master.anchor, "", "includes",
+                               ', '.join(master.includes)))
 
         res = [(k, content[k]) for k in sorted(content.keys())]
         return (res, True)
@@ -442,8 +451,8 @@ class CfgDomain(Domain):
     label = 'Parameter Configs'
 
     obj_types = {
-        'config':  ObjType('config', 'config'),
-        'option':  ObjType('option', 'option'),
+        'config': ObjType('config', 'config'),
+        'option': ObjType('option', 'option'),
     }
 
     roles = {
@@ -464,12 +473,11 @@ class CfgDomain(Domain):
 
     initial_data = {
         'config': [],  # ConfigEntry
-        'config2options': {}, # config_name -> List[OptionEntry]
+        'config2options': {},  # config_name -> List[OptionEntry]
     }
 
     def clear_doc(self, docname):
-        self.data['config'] = [entry for entry in self.data['config']
-                               if entry.docname != docname]
+        self.data['config'] = [entry for entry in self.data['config'] if entry.docname != docname]
         for config_name, entries_list in self.data['config2options'].items():
             filered_entries = [entry for entry in entries_list if entry.docname != docname]
             self.data['config2options'][config_name] = filered_entries
@@ -491,8 +499,7 @@ class CfgDomain(Domain):
                                    option_entry.anchor,
                                    prio=1)
 
-    def resolve_xref(self, env, fromdocname, builder, typ,
-                     target, node, contnode):
+    def resolve_xref(self, env, fromdocname, builder, typ, target, node, contnode):
         if not target:
             return None
         if typ == "config":
@@ -510,15 +517,10 @@ class CfgDomain(Domain):
                 config, entry_name = '.'.join(split[:i]), '.'.join(split[i:])
                 for option_entry in config_options.get(config, []):
                     if option_entry.dispname == entry_name:  # match!
-                        return make_refnode(builder,
-                                            fromdocname,
-                                            option_entry.docname,
-                                            option_entry.anchor,
-                                            contnode,
-                                            option_entry.dispname)
+                        return make_refnode(builder, fromdocname, option_entry.docname,
+                                            option_entry.anchor, contnode, option_entry.dispname)
             return None
         return None
-
 
     @property
     def master_configs(self):
@@ -543,13 +545,10 @@ class CfgDomain(Domain):
             if config_entry.master:
                 other = master_configs.get(config_entry.fullname, None)
                 if other:
-                    logger.warning("two 'cfg:config' objects %s with ':master:' "
-                                   "in %s, line %d and %s, line %d",
-                                   config_entry.fullname,
-                                   config_entry.source,
-                                   config_entry.line,
-                                   other.source,
-                                   other.line)
+                    logger.warning(
+                        "two 'cfg:config' objects %s with ':master:' "
+                        "in %s, line %d and %s, line %d", config_entry.fullname,
+                        config_entry.source, config_entry.line, other.source, other.line)
                 master_configs[config_entry.fullname] = config_entry
         # if no master is given: master = first defined entry
         for config_entry in data_config:
@@ -561,13 +560,14 @@ class CfgDomain(Domain):
             master = master_configs[name]
             for incl in config_entry.includes[:]:
                 if incl not in master_configs:
-                    logger.warning("config '%s' defined in %s, line %d includes "
-                                   "unknown (not indexed) config '%s'",
-                                   name, config_entry.source, config_entry.line, incl)
+                    logger.warning(
+                        "config '%s' defined in %s, line %d includes "
+                        "unknown (not indexed) config '%s'", name, config_entry.source,
+                        config_entry.line, incl)
                     try:
                         master.includes.remove(incl)
                     except ValueError:
-                        pass # not in list: okay..
+                        pass  # not in list: okay..
                 elif incl not in master.includes:
                     master.includes.append(incl)
 
@@ -588,13 +588,14 @@ class CfgDomain(Domain):
             master_config = master_configs.get(config, None)
             if master_config:
                 includes = master_config.includes
-            else: # config not in master_config, i.e. no config of that name indexed
+            else:  # config not in master_config, i.e. no config of that name indexed
                 # => config likely only defined through an option directive!
                 for option in data_config2options.get(config, []):
                     assert option.config == config
-                    logger.warning("`cfg:option` '%s' in %s, line %d, belongs to a"
-                                   " non-indexed, unknown config %s (-> Typo?)",
-                                   option.dispname, option.source, option.line, option.config)
+                    logger.warning(
+                        "`cfg:option` '%s' in %s, line %d, belongs to a"
+                        " non-indexed, unknown config %s (-> Typo?)", option.dispname,
+                        option.source, option.line, option.config)
 
             prio = dict((incl, i) for i, incl in enumerate(includes))
 
@@ -607,12 +608,11 @@ class CfgDomain(Domain):
 
             config_options[config] = sorted(options, key=sort_priority)
 
-
     def _set_recursive_include(self, config, handled_recursive):
         includes = self.master_configs[config].includes
         if config in handled_recursive:
             return includes
-        handled_recursive.add(config) # before doing it: safeguard for cyclic includes
+        handled_recursive.add(config)  # before doing it: safeguard for cyclic includes
         new_includes = [config]
         for sub in includes:
             if sub not in new_includes:
