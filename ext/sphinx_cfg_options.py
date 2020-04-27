@@ -31,7 +31,7 @@ ConfigEntry = namedtuple('ConfigEntry',
 # OptionEntry is used in CfgDomain.data['config2options']
 OptionEntry = namedtuple(
     'OptionEntry', "fullname, dispname, config, docname, anchor, context, "
-    "default, summary, source, line")
+    "default, summary, summarycropped, source, line")
 
 # ObjectsEntry is returned by Domain.get_objects()
 ObjectsEntry = namedtuple('ObjectsEntry', "name, dispname, typ, docname, anchor, prio")
@@ -252,6 +252,13 @@ class CfgOption(ObjectDescription):
         self.state.document.note_explicit_target(signode)
         if 'noindex' not in self.options:
             source, line = self.state_machine.get_source_and_line()
+            summary = self.content[0]
+            if len(self.content) > 1 or len(summary) > 80:
+                summary = summary[:75]
+                cropped = True
+            else:
+                cropped = False
+
             option_entry = OptionEntry(
                 fullname=fullname,
                 dispname=sig,
@@ -260,7 +267,8 @@ class CfgOption(ObjectDescription):
                 anchor=node_id,
                 context=context,
                 default=self.options.get('default', ""),
-                summary=self.content[0],
+                summary=summary,
+                summarycropped=cropped,
                 source=source,
                 line=line,
             )
@@ -351,6 +359,8 @@ class ConfigNodeProcessor:
         summary = option.summary
         par = nodes.paragraph()
         par += nodes.Text(summary)
+        if option.summarycropped:
+            par += self.make_refnode(option.docname, option.anchor, nodes.Text(" [...]"))
         row += nodes.entry("", par)
         return row
 
@@ -396,7 +406,7 @@ class CfgOptionIndex(Index):
     def generate(self, docnames=None):
         config_options = self.domain.config_options.copy()
         content = []
-        dummy_option = OptionEntry(*([""] * 10))
+        dummy_option = OptionEntry(*([""] * 11))
         for k in sorted(config_options.keys(), key=lambda x: x.upper()):
             options = config_options[k]
             if len(options) == 0:
