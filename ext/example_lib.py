@@ -35,7 +35,7 @@ class A:
     def do_something(self):
         """Some function using `self.params`.
 
-        .. cfg:config :: A_config
+        .. cfg:configoptions :: A_config
 
             first: int
                 Another description of the `first` parameter.

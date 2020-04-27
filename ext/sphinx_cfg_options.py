@@ -110,12 +110,15 @@ class CfgConfig(ObjectDescription):
         if 'nolist' not in self.options:
             contentnode.insert(0, cfgconfig(config, self.env.ref_context['cfg:context']))
         else:
-            master_ref = addnodes.pending_xref(config,
-                                               config,
-                                               refdomain='cfg',
-                                               reftype='config',
-                                               reftarget=config)
-            contentnode.insert(0, master_ref)
+            par = nodes.paragraph('')
+            par += nodes.Text("See ")
+            par += addnodes.pending_xref(config,
+                                         nodes.Text(config),
+                                         refdomain='cfg',
+                                         reftype='config',
+                                         reftarget=config)
+            par += nodes.Text(" for a list of further options.")
+            contentnode.insert(0, par)
         super().transform_content(contentnode)
 
     def after_content(self):
@@ -185,6 +188,13 @@ def _parse_inline(state, line, info):
     par = node[0]
     assert isinstance(node, nodes.paragraph)
     return par.children
+
+
+class CfgConfigOptions(CfgConfig):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if 'nolist' not in self.options:
+            self.options['nolist'] = None
 
 
 class CfgOption(ObjectDescription):
@@ -462,6 +472,7 @@ class CfgDomain(Domain):
 
     directives = {
         'config': CfgConfig,
+        'configoptions': CfgConfigOptions,
         'currentconfig': CfgCurrentConfig,
         'option': CfgOption,
     }
