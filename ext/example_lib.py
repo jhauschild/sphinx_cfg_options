@@ -38,7 +38,9 @@ class A:
         .. cfg:configoptions :: A_config
 
             first: int
-                Another description of the `first` parameter.
+                A **different** description of the `first` parameter.
+            third: str
+                The `third` parameter.
         """
         print(self.params.keys())
 

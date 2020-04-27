@@ -194,8 +194,19 @@ def _parse_inline(state, line, info):
 class CfgConfigOptions(CfgConfig):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if 'nolist' not in self.options:
-            self.options['nolist'] = None
+        self.options['noindex'] = None
+
+    def before_content(self):
+        super().before_content()
+        self.env.ref_context['cfg:in-config'] = False
+
+    def run(self):
+        index, desc = super().run()
+        assert isinstance(desc, addnodes.desc)
+        desc_content = desc[1]
+        assert isinstance(desc_content, addnodes.desc_content)
+        return desc_content.children[1:]  #don't include the summary table/list/reference
+
 
 
 class CfgOption(ObjectDescription):

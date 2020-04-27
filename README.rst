@@ -46,12 +46,14 @@ It can define the following config with a ``.. cfg:config:: Vehicle`` directive.
 
    max_speed : float = 220.
       Maximum speed of the vehicle in km/h.
-
-      This description might go over multiple lines and gets fully parse.
+      This description might go over multiple lines and gets fully parsed.
 
       .. note ::
 
-          The table above only shows the first line.
+          The table above only shows the first line of the description.
+
+In the built documentation, this directive includes a summary table
+in the beginning with all the options defined for the `config` of that name "Vehicle".
 
 In the function that sets up the engine, we notice that we need another
 parameter: the type of the fuel. 
@@ -65,8 +67,20 @@ If we want to define only a single option value, we can use the
 
     Type of the used fuel, ``"gasoline"`` or ``"diesel"``.
 
+If you want to document multiple options at once, 
+Alternatively, it can be more conventient to use the ``.. cfg:configoptions::``
+directive, which gets parsed in the same way as the ``.. cfg:config::``.
 
-Now we want to setup a factory for cars.
+.. cfg:configoptions:: Vehicle
+
+    tank: float
+        The capacity of the tank in liters.
+    fuel_consumption : float
+        How many liters of fuel are used for going 100km.
+
+--------------
+
+Now let's say we want to setup a factory for cars.
 The car factory can use the vehicle factory, so the `config` of the car factory
 should include the `config` of the vehicle factory.
 This is indicated by the option ``:include: Vehicle`` in the body of the config:
@@ -96,11 +110,12 @@ point to the two different definitions.
 
 .. tip ::
     You can include a config of the same name at multiple positions in the documentation, and you don't need to 
-    repeat all the options again. If you want to specify what the `:cfg:config:` role points to, you can 
+    repeat all the options again. If you want to specify what the `:cfg:config:` role points to, you can
     use the `:master:` option in one of the ``.. cfg:config`` directives, as demonstrated in the following.
 
 .. cfg:config:: ElectricCar
     :master:
+
 
 Installation
 ------------
