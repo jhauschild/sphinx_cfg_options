@@ -6,7 +6,7 @@ Welcome to sphinx cfg option's documentation!
    :caption: Contents:
 
    README
-   mylib
+   example_lib
    tests
 
 Indices and tables
