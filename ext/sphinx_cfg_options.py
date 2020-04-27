@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 # ConfigEntry is used in CfgDomain.data['config']
 ConfigEntry = namedtuple('ConfigEntry',
-                         "fullname, dispname, docname, anchor, master, includes, source, line")
+                         "fullname, dispname, docname, anchor, master, nolist, includes, source, line")
 
 # OptionEntry is used in CfgDomain.data['config2options']
 OptionEntry = namedtuple(
@@ -89,6 +89,7 @@ class CfgConfig(ObjectDescription):
                                    docname=self.env.docname,
                                    anchor=node_id,
                                    master=master,
+                                   nolist='nolist' in self.options,
                                    includes=includes,
                                    source=source,
                                    line=line)
@@ -561,9 +562,14 @@ class CfgDomain(Domain):
                         "in %s, line %d and %s, line %d", config_entry.fullname,
                         config_entry.source, config_entry.line, other.source, other.line)
                 master_configs[config_entry.fullname] = config_entry
-        # if no master is given: master = first defined entry
+        # if no master is given: master = first defined entry without :nolist: option
+        for config_entry in data_config:
+            if not config_entry.nolist:
+                master_configs.setdefault(config_entry.fullname, config_entry)
+        # unless we don't even have an entry without :nolist:
         for config_entry in data_config:
             master_configs.setdefault(config_entry.fullname, config_entry)
+
         # collect the includes from other entries in `data_config`
         # and make sure that we only have valid includes
         for config_entry in data_config:
