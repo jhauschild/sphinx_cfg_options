@@ -44,8 +44,8 @@ exclude_patterns = []
 #cfg_options_recursive_includes = True
 #cfg_options_parse_numpydoc_style_options = True
 #cfg_options_table_summary = "table"  # "table", "list" or None
-#cfg_options_table_add_header=True
-
+#cfg_options_table_add_header = True
+cfg_options_default_in_summary_table = False
 
 # ----- Output options ----------------------
 

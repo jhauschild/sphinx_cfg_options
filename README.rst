@@ -134,7 +134,8 @@ Put the `ext/sphinx_cfg_options.py` somewhere where it can be imported as python
         Choose how to format the summary at the g
     cfg_options_table_add_header = True
         Include the header "option default summary" in the option tables in the beginnning of a config.
-
+    cfg_options_default_in_summary_table = True
+        Whether to include the column "default" in the summary tables.
 
 
 Limitations
