@@ -25,8 +25,8 @@ from sphinx.util import logging
 logger = logging.getLogger(__name__)
 
 # ConfigEntry is used in CfgDomain.data['config']
-ConfigEntry = namedtuple('ConfigEntry',
-                         "fullname, dispname, docname, anchor, master, nolist, includes, source, line")
+ConfigEntry = namedtuple(
+    'ConfigEntry', "fullname, dispname, docname, anchor, master, nolist, includes, source, line")
 
 # OptionEntry is used in CfgDomain.data['config2options']
 OptionEntry = namedtuple(
@@ -38,6 +38,9 @@ ObjectsEntry = namedtuple('ObjectsEntry', "name, dispname, typ, docname, anchor,
 
 # IndexEntry is retured by Index.generate()
 IndexEntry = namedtuple('IndexEntry', "name, subtype, docname, anchor, extra, qualifier, descr")
+
+option_header_re = re.compile("([\w.]*)\s*(?::\s*([^=]*))?(?:=\s*(\S*)\s*)?$")
+directive_re = re.compile("^..\s*\w+\s*::")
 
 
 class cfgconfig(nodes.General, nodes.Element):
@@ -136,7 +139,6 @@ class CfgConfig(ObjectDescription):
         return super().run()
 
     def parse_numpydoc_style_options(self):
-        option_header_re = re.compile("([\w.]*)\s*(?::\s*([^=]*))?(?:=\s*(\S*)\s*)?$")
         self.env.app.emit('cfg_options-parse_config', self)
         self.content.disconnect()  # avoid screwing up the parsing of the parent
         N = len(self.content)
@@ -145,11 +147,8 @@ class CfgConfig(ObjectDescription):
         field_begin = [i for i, indent in enumerate(indents) if indent == 0]
         for field_beg, field_end in reversed(list(zip(field_begin, field_begin[1:] + [N]))):
             field_beg_line = self.content[field_beg]
-            next_indent = "    "  # default indent, if no non-empty lines follow
-            for j in range(field_beg + 1, field_end):
-                if indents[j] > 0:
-                    next_indent = self.content[j][:indents[j]]
-                    break
+            if directive_re.match(field_beg_line):
+                continue  # ignore other directives
             m = option_header_re.match(field_beg_line)
             if m is None:
                 source, line = self.content.info(field_beg)
@@ -158,6 +157,11 @@ class CfgConfig(ObjectDescription):
                                repr(field_beg_line),
                                location=location)
                 continue
+            next_indent = "    "  # default indent, if no non-empty lines follow
+            for j in range(field_beg + 1, field_end):
+                if indents[j] > 0:
+                    next_indent = self.content[j][:indents[j]]
+                    break
             name, typ, default = m.groups()
             replace = [".. cfg:option :: " + name]
             if typ is not None and typ.strip():
