@@ -431,7 +431,7 @@ class CfgOptionIndex(Index):
     shortname = 'Config Option'
 
     def generate(self, docnames=None):
-        config_options = self.domain.config_options.copy()
+        config_options = self.domain.all_config_options.copy()
         content = []
         dummy_option = OptionEntry(*([""] * 11))
         for k in sorted(config_options.keys(), key=lambda x: x.upper()):
