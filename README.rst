@@ -138,6 +138,9 @@ Put the `ext/sphinx_cfg_options.py` somewhere where it can be imported as python
         Whether to include the column "default" in the summary tables.
     cfg_options_unique = True
         If True, the options within a config should be unique, and only one is shown.
+    cfg_options_always_include : list = []
+        List of config names which each config should include.
+        This is usefull if you have default values which are read out in any config.
 
 
 Limitations
