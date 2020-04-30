@@ -136,6 +136,8 @@ Put the `ext/sphinx_cfg_options.py` somewhere where it can be imported as python
         Include the header "option default summary" in the option tables in the beginnning of a config.
     cfg_options_default_in_summary_table = True
         Whether to include the column "default" in the summary tables.
+    cfg_options_unique = True
+        If True, the options within a config should be unique, and only one is shown.
 
 
 Limitations
