@@ -123,13 +123,16 @@ You need Sphinx version >=3.0.
 Put the `ext/sphinx_cfg_options.py` somewhere where it can be imported as python module during the sphinx build.
 (This can be acchieved by updating ``sys.path`` inside the `conf.py`, take a look at the example provided in this repo).
 
-.. cfg:config:: conf.py options
+.. cfg:config:: conf.py
     
     cfg_options_recursive_includes = True
          If config A includes B and B includes C, this option sets whether A automatically includes C.
     cfg_options_parse_numpydoc_style_options = True
         Allows to disable the parsing of the ``.. cfg:config::`` content.
         If disabled, you need to use the ``.. cfg:option::`` for all context.
+    cfg_options_parse_comma_sep_names = False
+        When parsing the content of ``.. cfg:config::``,
+        allow multiple ','-separated option names in a single line.
     cfg_options_summary : "table", "list", or None = "table"
         Choose how to format the summary at the g
     cfg_options_table_add_header = True

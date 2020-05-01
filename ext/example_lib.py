@@ -39,8 +39,9 @@ class A:
 
             first: int
                 A **different** description of the `first` parameter.
-            third: str
-                The `third` parameter.
+            third, fourth, fifth: str
+                Multiple options documented at once.
+                Works only if :cfg:option:`conf.py.cfg_options_parse_comma_sep_names` is enabled.
         """
         print(self.params.keys())
 
