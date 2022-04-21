@@ -39,6 +39,8 @@ language = None
 
 exclude_patterns = []
 
+autodoc_default_options = {'inherited-members': True}
+
 # ----- Options for the the extension -------
 
 #cfg_options_recursive_includes = True
