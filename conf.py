@@ -35,7 +35,7 @@ version = '0.1'
 # The full version, including alpha/beta/rc tags.
 release = '0.1'
 
-language = None
+language = 'en'
 
 exclude_patterns = []
 
@@ -56,25 +56,10 @@ cfg_options_parse_comma_sep_names = True
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
 
-
-# html_theme = 'alabaster'
+#  html_theme = 'alabaster'
 html_theme = 'sphinx_rtd_theme'
 
 html_static_path = ['_static']
 
-# This is required for the alabaster theme
-# refs: http://alabaster.readthedocs.io/en/latest/installation.html#sidebars
-html_sidebars = {
-    '**': [
-        'about.html',
-        'navigation.html',
-        'relations.html',  # needs 'show_related': True theme option to display
-        'searchbox.html',
-        'donate.html',
-    ]
-}
-
-html_context = {
-    'css_files': ['_static/custom.css'],  # to highlight targets
-}
+html_css_files = ['custom.css']  # to highlight targets
 
